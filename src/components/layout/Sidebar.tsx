@@ -4,8 +4,8 @@ export function Sidebar() {
   const navItems = [
     { name: 'Caesar Cipher', href: '/caesar' },
     { name: 'Vigenère Cipher', href: '/vigenere' },
-    { name: 'Modern Alg 1 (AES)', href: '/aes' },
-    { name: 'Modern Alg 2 (RSA)', href: '/rsa' },
+    { name: 'LFSR Stream Cipher', href: '/lfsr' },
+    { name: 'RSA (Public Key)', href: '/rsa' },
     { name: 'Super Encryption', href: '/super-encryption' },
   ];
 
