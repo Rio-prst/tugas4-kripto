@@ -24,14 +24,14 @@ Aplikasi terdiri dari **5 menu utama**:
 
 ## Fitur
 
-* 🔒 Enkripsi teks
-* 🔓 Dekripsi teks
-* 📊 Visualisasi proses enkripsi
-* 📊 Visualisasi proses dekripsi
-* 🔑 Input key sesuai algoritma
-* 🧮 Menampilkan perhitungan atau tahapan algoritma
-* 🔗 Super encryption menggunakan empat algoritma
-* 📋 Menampilkan hasil setiap tahapan proses
+* Enkripsi teks
+* Dekripsi teks
+* Visualisasi proses enkripsi
+* Visualisasi proses dekripsi
+* Input key sesuai algoritma
+* Menampilkan perhitungan atau tahapan algoritma
+* Super encryption menggunakan empat algoritma
+* Menampilkan hasil setiap tahapan proses
 
 ---
 
@@ -226,6 +226,6 @@ Project ini bertujuan untuk:
 
 ---
 
-## 📚 Catatan
+## Catatan
 
 Project ini dibuat untuk keperluan **pembelajaran dan tugas akademik** pada mata kuliah Kriptografi.
