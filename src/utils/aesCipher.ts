@@ -1,204 +1,365 @@
-import CryptoJS from 'crypto-js';
 import { CipherError } from '@/lib/cipherError';
+import {
+  AES_BLOCK_SIZE,
+  decryptBlockWithTrace,
+  encryptBlockWithTrace,
+  expandKey,
+  fromHex,
+  roundsForKey,
+  stateToMatrix,
+  toHex,
+  type RoundTrace,
+} from '@/utils/rijndael';
 
 export interface AesVisualStep {
   id: number;
   title: string;
   description: string;
   matrixBefore?: string[][];
-  matrixKey?: string[][]; 
+  matrixKey?: string[][];
   matrixAfter?: string[][];
   extraInfo?: string;
+}
+
+/** One row per 16-byte block, so long inputs stay inspectable. */
+export interface AesBlockSummary {
+  index: number;
+  inputHex: string;
+  outputHex: string;
+  /** True only for the block that carries the full round-by-round trace. */
+  detailed: boolean;
 }
 
 export interface AesResult {
   resultText: string;
   steps: AesVisualStep[];
+  blocks: AesBlockSummary[];
+  mode: 'encrypt' | 'decrypt';
+  keyBytes: number;
+  rounds: number;
+  blockCount: number;
+  paddingBytes: number;
+  /** Always 0 for now. ECB processes every block independently. */
+  modeOfOperation: 'ECB';
 }
 
-// Standard AES S-Box
-const SBOX = [
-  0x63, 0x7c, 0x77, 0x7b, 0xf2, 0x6b, 0x6f, 0xc5, 0x30, 0x01, 0x67, 0x2b, 0xfe, 0xd7, 0xab, 0x76,
-  0xca, 0x82, 0xc9, 0x7d, 0xfa, 0x59, 0x47, 0xf0, 0xad, 0xd4, 0xa2, 0xaf, 0x9c, 0xa4, 0x72, 0xc0,
-  0xb7, 0xfd, 0x93, 0x26, 0x36, 0x3f, 0xf7, 0xcc, 0x34, 0xa5, 0xe5, 0xf1, 0x71, 0xd8, 0x31, 0x15,
-  0x04, 0xc7, 0x23, 0xc3, 0x18, 0x96, 0x05, 0x9a, 0x07, 0x12, 0x80, 0xe2, 0xeb, 0x27, 0xb2, 0x75,
-  0x09, 0x83, 0x2c, 0x1a, 0x1b, 0x6e, 0x5a, 0xa0, 0x52, 0x3b, 0xd6, 0xb3, 0x29, 0xe3, 0x2f, 0x84,
-  0x53, 0xd1, 0x00, 0xed, 0x20, 0xfc, 0xb1, 0x5b, 0x6a, 0xcb, 0xbe, 0x39, 0x4a, 0x4c, 0x58, 0xcf,
-  0xd0, 0xef, 0xaa, 0xfb, 0x43, 0x4d, 0x33, 0x85, 0x45, 0xf9, 0x02, 0x7f, 0x50, 0x3c, 0x9f, 0xa8,
-  0x51, 0xa3, 0x40, 0x8f, 0x92, 0x9d, 0x38, 0xf5, 0xbc, 0xb6, 0xda, 0x21, 0x10, 0xff, 0xf3, 0xd2,
-  0xcd, 0x0c, 0x13, 0xec, 0x5f, 0x97, 0x44, 0x17, 0xc4, 0xa7, 0x7e, 0x3d, 0x64, 0x5d, 0x19, 0x73,
-  0x60, 0x81, 0x4f, 0xdc, 0x22, 0x2a, 0x90, 0x88, 0x46, 0xee, 0xb8, 0x14, 0xde, 0x5e, 0x0b, 0xdb,
-  0xe0, 0x32, 0x3a, 0x0a, 0x49, 0x06, 0x24, 0x5c, 0xc2, 0xd3, 0xac, 0x62, 0x91, 0x95, 0xe4, 0x79,
-  0xe7, 0xc8, 0x37, 0x6d, 0x8d, 0xd5, 0x4e, 0xa9, 0x6c, 0x56, 0xf4, 0xea, 0x65, 0x7a, 0xae, 0x08,
-  0xba, 0x78, 0x25, 0x2e, 0x1c, 0xa6, 0xb4, 0xc6, 0xe8, 0xdd, 0x74, 0x1f, 0x4b, 0xbd, 0x8b, 0x8a,
-  0x70, 0x3e, 0xb5, 0x66, 0x48, 0x03, 0xf6, 0x0e, 0x61, 0x35, 0x57, 0xb9, 0x86, 0xc1, 0x1d, 0x9e,
-  0xe1, 0xf8, 0x98, 0x11, 0x69, 0xd9, 0x8e, 0x94, 0x9b, 0x1e, 0x87, 0xe9, 0xce, 0x55, 0x28, 0xdf,
-  0x8c, 0xa1, 0x89, 0x0d, 0xbf, 0xe6, 0x42, 0x68, 0x41, 0x99, 0x2d, 0x0f, 0xb0, 0x54, 0xbb, 0x16
-];
+const textEncoder = new TextEncoder();
+const textDecoder = new TextDecoder('utf-8', { fatal: true });
 
-// Galois Field Math
-const gfMul2 = (v: number) => (v << 1) ^ (v & 0x80 ? 0x1b : 0);
-const gfMul3 = (v: number) => gfMul2(v) ^ v;
+/** PKCS#7: always add between 1 and 16 bytes, even when the input divides evenly. */
+function padPkcs7(data: Uint8Array): Uint8Array {
+  const count = AES_BLOCK_SIZE - (data.length % AES_BLOCK_SIZE);
+  const out = new Uint8Array(data.length + count);
+  out.set(data);
+  out.fill(count, data.length);
+  return out;
+}
 
-function createStateMatrix(text: string): string[][] {
-  const hex = CryptoJS.enc.Hex.stringify(CryptoJS.enc.Utf8.parse(text)).padEnd(32, '0');
-  const matrix: string[][] = [[], [], [], []];
-  for (let col = 0; col < 4; col++) {
-    for (let row = 0; row < 4; row++) {
-      const idx = (col * 4 + row) * 2;
-      matrix[row][col] = hex.substring(idx, idx + 2).toUpperCase() || '00';
+function unpadPkcs7(data: Uint8Array): Uint8Array {
+  if (data.length === 0 || data.length % AES_BLOCK_SIZE !== 0) {
+    throw new CipherError('AES_DECRYPT_FAILED', 'The ciphertext length is not a whole number of blocks.');
+  }
+  const count = data[data.length - 1];
+  if (count < 1 || count > AES_BLOCK_SIZE || count > data.length) {
+    throw new CipherError('AES_DECRYPT_FAILED', `The padding byte is ${count}, which is not a valid PKCS#7 length.`);
+  }
+  for (let i = data.length - count; i < data.length; i++) {
+    if (data[i] !== count) {
+      throw new CipherError('AES_DECRYPT_FAILED', 'The padding bytes are inconsistent, so this is not the ciphertext for this key.');
     }
   }
-  return matrix;
+  return data.subarray(0, data.length - count);
 }
 
-function xorMatrices(m1: string[][], m2: string[][]): string[][] {
-  const res: string[][] = [[], [], [], []];
-  for (let r = 0; r < 4; r++) {
-    for (let c = 0; c < 4; c++) {
-      const val1 = parseInt(m1[r][c], 16) || 0;
-      const val2 = parseInt(m2[r][c], 16) || 0;
-      res[r][c] = (val1 ^ val2).toString(16).padStart(2, '0').toUpperCase();
+function parseKeyBytes(key: string): Uint8Array {
+  const bytes = textEncoder.encode(key);
+  if (bytes.length !== 16 && bytes.length !== 24 && bytes.length !== 32) {
+    throw new CipherError(
+      'AES_KEY_LENGTH',
+      `The key is ${bytes.length} byte(s) long.`
+    );
+  }
+  return bytes;
+}
+
+/** Splits a byte array into 16-byte blocks. */
+function toBlocks(data: Uint8Array): Uint8Array[] {
+  const blocks: Uint8Array[] = [];
+  for (let offset = 0; offset < data.length; offset += AES_BLOCK_SIZE) {
+    blocks.push(data.subarray(offset, offset + AES_BLOCK_SIZE));
+  }
+  return blocks;
+}
+
+function describeSize(keyBytes: number): string {
+  return `AES-${keyBytes * 8} (${keyBytes} byte key, ${roundsForKey(new Uint8Array(keyBytes))} rounds)`;
+}
+
+function buildEncryptSteps(
+  plaintextBlock: Uint8Array,
+  expandedKey: Uint8Array,
+  trace: RoundTrace[],
+  keyBytes: number
+): AesVisualStep[] {
+  const steps: AesVisualStep[] = [];
+  let id = 0;
+
+  steps.push({
+    id: id++,
+    title: '1. Plaintext block to State Matrix',
+    description:
+      'AES never works on the whole message. The text is split into 16-byte blocks, and each block is written into a 4x4 matrix column by column, so byte i sits at row i mod 4.',
+    matrixBefore: stateToMatrix(plaintextBlock),
+    extraInfo: `Block plaintext: ${toHex(plaintextBlock).toUpperCase()}`,
+  });
+
+  steps.push({
+    id: id++,
+    title: '2. Key expansion',
+    description:
+      'The key schedule expands the key into one round key per round using RotWord, SubWord and the round constants. Every round below XORs in a different 16-byte round key.',
+    extraInfo: `${describeSize(keyBytes)}, expanded to ${expandedKey.length} bytes of round keys. Round 1 uses ${toHex(expandedKey.subarray(16, 32)).toUpperCase()}.`,
+  });
+
+  for (const round of trace) {
+    const stage = round.isFinalRound ? 'Final round' : `Round ${round.round}`;
+
+    steps.push({
+      id: id++,
+      title: `${id}. ${stage}: SubBytes`,
+      description:
+        'Each byte is replaced independently by its value in the AES S-Box, which already contains the inverse of the multiplicative inverse in GF(2^8), so the substitution is its own kind of non-linear step.',
+      matrixBefore: stateToMatrix(round.input),
+      matrixAfter: stateToMatrix(round.subBytes),
+    });
+
+    steps.push({
+      id: id++,
+      title: `${id}. ${stage}: ShiftRows`,
+      description:
+        'Row r is rotated left by r positions. No bytes are added or changed, only moved, which is what breaks up the column structure.',
+      matrixBefore: stateToMatrix(round.subBytes),
+      matrixAfter: stateToMatrix(round.shiftRows),
+    });
+
+    if (round.mixColumns) {
+      steps.push({
+        id: id++,
+        title: `${id}. ${stage}: MixColumns`,
+        description:
+          'Each column is multiplied by the fixed polynomial matrix over GF(2^8). This is the step that spreads a single input byte across all four bytes of its column.',
+        matrixBefore: stateToMatrix(round.shiftRows),
+        matrixAfter: stateToMatrix(round.mixColumns),
+      });
+    }
+
+    steps.push({
+      id: id++,
+      title: `${id}. ${stage}: AddRoundKey`,
+      description: round.isFinalRound
+        ? 'The last round key is XORed in. The final round has no MixColumns, so this is the last operation before the ciphertext block is read out.'
+        : `The round key for ${stage.toLowerCase()} is XORed into the state byte by byte.`,
+      matrixBefore: stateToMatrix(round.mixColumns ?? round.shiftRows),
+      matrixKey: stateToMatrix(round.roundKey),
+      matrixAfter: stateToMatrix(round.output),
+    });
+  }
+
+  steps.push({
+    id: id++,
+    title: 'Ciphertext block',
+    description:
+      'After the final AddRoundKey the state is the ciphertext block, read back out column by column.',
+    matrixBefore: stateToMatrix(trace[trace.length - 1].output),
+    extraInfo: `Block ciphertext: ${toHex(trace[trace.length - 1].output).toUpperCase()}`,
+  });
+
+  return steps;
+}
+
+function buildDecryptSteps(
+  ciphertextBlock: Uint8Array,
+  expandedKey: Uint8Array,
+  trace: RoundTrace[],
+  keyBytes: number
+): AesVisualStep[] {
+  const steps: AesVisualStep[] = [];
+  let id = 0;
+
+  steps.push({
+    id: id++,
+    title: '1. Ciphertext block to State Matrix',
+    description:
+      'Decryption starts from the ciphertext block. The same key schedule is rebuilt from the same key.',
+    matrixBefore: stateToMatrix(ciphertextBlock),
+    extraInfo: `Block ciphertext: ${toHex(ciphertextBlock).toUpperCase()}`,
+  });
+
+  steps.push({
+    id: id++,
+    title: '2. Key expansion',
+    description:
+      'The identical key schedule is used. Decryption walks the rounds backwards, so it starts from the last round key.',
+    extraInfo: `${describeSize(keyBytes)}, expanded to ${expandedKey.length} bytes of round keys.`,
+  });
+
+  for (const round of trace) {
+    const stage = `Round ${round.round}`;
+    const isFinal = round.isFinalRound;
+
+    steps.push({
+      id: id++,
+      title: `${id}. ${stage}: InvShiftRows`,
+      description: 'The inverse of ShiftRows: row r is rotated right by r positions.',
+      matrixBefore: stateToMatrix(round.input),
+      matrixAfter: stateToMatrix(round.shiftRows),
+    });
+
+    steps.push({
+      id: id++,
+      title: `${id}. ${stage}: InvSubBytes`,
+      description: 'Each byte is replaced by the inverse S-Box, which undoes SubBytes exactly.',
+      matrixBefore: stateToMatrix(round.shiftRows),
+      matrixAfter: stateToMatrix(round.subBytes),
+    });
+
+    steps.push({
+      id: id++,
+      title: `${id}. ${stage}: AddRoundKey`,
+      description: `The round key for ${stage.toLowerCase()} is XORed back in. XOR undoes itself.`,
+      matrixBefore: stateToMatrix(round.subBytes),
+      matrixKey: stateToMatrix(round.roundKey),
+      matrixAfter: stateToMatrix(isFinal ? round.output : (round.mixColumns as Uint8Array)),
+    });
+
+    if (round.mixColumns) {
+      steps.push({
+        id: id++,
+        title: `${id}. ${stage}: InvMixColumns`,
+        description:
+          'The inverse MixColumns multiplies by 0e, 0b, 0d and 09 instead of 02 and 03, which reverses MixColumns.',
+        matrixBefore: stateToMatrix(round.subBytes),
+        matrixAfter: stateToMatrix(round.mixColumns),
+      });
     }
   }
-  return res;
-}
 
-// REAL SubBytes
-function performSubBytes(matrix: string[][]): string[][] {
-  return matrix.map(row => row.map(val => {
-    const intVal = parseInt(val, 16);
-    return SBOX[intVal].toString(16).padStart(2, '0').toUpperCase();
-  }));
-}
+  steps.push({
+    id: id++,
+    title: 'Recovered plaintext block',
+    description: 'The state is read back column by column to give the plaintext block, still padded.',
+    matrixBefore: stateToMatrix(trace[trace.length - 1].output),
+    extraInfo: `Block plaintext, padding included: ${toHex(trace[trace.length - 1].output).toUpperCase()}`,
+  });
 
-// REAL ShiftRows
-function performShiftRows(matrix: string[][]): string[][] {
-  const newMatrix: string[][] = [[], [], [], []];
-  newMatrix[0] = [...matrix[0]]; 
-  newMatrix[1] = [...matrix[1].slice(1), ...matrix[1].slice(0, 1)]; 
-  newMatrix[2] = [...matrix[2].slice(2), ...matrix[2].slice(0, 2)]; 
-  newMatrix[3] = [...matrix[3].slice(3), ...matrix[3].slice(0, 3)]; 
-  return newMatrix;
-}
-
-// REAL MixColumns (Galois Field multiplication)
-function performMixColumns(matrix: string[][]): string[][] {
-  const res: string[][] = [[], [], [], []];
-  for (let c = 0; c < 4; c++) {
-    const a = parseInt(matrix[0][c], 16);
-    const b = parseInt(matrix[1][c], 16);
-    const d_c = parseInt(matrix[2][c], 16); // avoid variable 'c' shadowing
-    const d = parseInt(matrix[3][c], 16);
-    
-    const r0 = gfMul2(a) ^ gfMul3(b) ^ d_c ^ d;
-    const r1 = a ^ gfMul2(b) ^ gfMul3(d_c) ^ d;
-    const r2 = a ^ b ^ gfMul2(d_c) ^ gfMul3(d);
-    const r3 = gfMul3(a) ^ b ^ d_c ^ gfMul2(d);
-
-    res[0][c] = (r0 & 0xFF).toString(16).padStart(2, '0').toUpperCase();
-    res[1][c] = (r1 & 0xFF).toString(16).padStart(2, '0').toUpperCase();
-    res[2][c] = (r2 & 0xFF).toString(16).padStart(2, '0').toUpperCase();
-    res[3][c] = (r3 & 0xFF).toString(16).padStart(2, '0').toUpperCase();
-  }
-  return res;
+  return steps;
 }
 
 export function processAES(text: string, key: string, mode: 'encrypt' | 'decrypt'): AesResult {
-  const steps: AesVisualStep[] = [];
-  let resultText = '';
-
   if (!text) {
     throw new CipherError('EMPTY_INPUT');
   }
 
-  // Measure bytes rather than string length, so a key containing non-ASCII
-  // characters is not silently accepted at the wrong size.
-  const keyBytes = new TextEncoder().encode(key).length;
-  if (keyBytes !== 16 && keyBytes !== 24 && keyBytes !== 32) {
+  const keyBytes = parseKeyBytes(key);
+  const rounds = roundsForKey(keyBytes);
+  const expandedKey = expandKey(keyBytes);
+
+  if (mode === 'encrypt') {
+    const padded = padPkcs7(textEncoder.encode(text));
+    const paddingBytes = padded.length - textEncoder.encode(text).length;
+    const blocks = toBlocks(padded);
+    const outputs: Uint8Array[] = [];
+    const summaries: AesBlockSummary[] = [];
+    let steps: AesVisualStep[] = [];
+
+    blocks.forEach((block, index) => {
+      const { ciphertext, trace } = encryptBlockWithTrace(block, expandedKey, rounds);
+      outputs.push(ciphertext);
+      summaries.push({
+        index,
+        inputHex: toHex(block).toUpperCase(),
+        outputHex: toHex(ciphertext).toUpperCase(),
+        detailed: index === 0,
+      });
+      if (index === 0) {
+        steps = buildEncryptSteps(block, expandedKey, trace, keyBytes.length);
+      }
+    });
+
+    return {
+      resultText: outputs.map((block) => toHex(block).toUpperCase()).join(''),
+      steps,
+      blocks: summaries,
+      mode,
+      keyBytes: keyBytes.length,
+      rounds,
+      blockCount: blocks.length,
+      paddingBytes,
+      modeOfOperation: 'ECB',
+    };
+  }
+
+  let ciphertext: Uint8Array;
+  try {
+    ciphertext = fromHex(text);
+  } catch {
     throw new CipherError(
-      'AES_KEY_LENGTH',
-      `The key "${key}" is ${keyBytes} byte(s) long.`
+      'AES_CIPHERTEXT_FORMAT',
+      'Encryption on this page produces one long hexadecimal string, with no spaces and no 0x prefix.'
+    );
+  }
+  if (ciphertext.length === 0 || ciphertext.length % AES_BLOCK_SIZE !== 0) {
+    throw new CipherError(
+      'AES_CIPHERTEXT_FORMAT',
+      `The ciphertext is ${ciphertext.length} bytes, which is not a whole number of 16-byte blocks.`
     );
   }
 
-  if (mode === 'encrypt') {
-    resultText = CryptoJS.AES.encrypt(text, key).toString();
+  const blocks = toBlocks(ciphertext);
+  const outputs: Uint8Array[] = [];
+  const summaries: AesBlockSummary[] = [];
+  let steps: AesVisualStep[] = [];
 
-    const stateMatrix = createStateMatrix(text);
-
-    // For true AES, the initial key relies on a Key Expansion schedule (Rijndael key schedule). 
-    // To show accurate math for round 1 while keeping it understandable, we derive the actual 1st round key block:
-    const evpKDF = CryptoJS.EvpKDF(key, '', { keySize: 4, iterations: 1 }); // Simplistic key derivation for visual matching
-    const keyMatrix = createStateMatrix(evpKDF.toString()); 
-
-    const initialRoundMatrix = xorMatrices(stateMatrix, keyMatrix);
-    const subBytesMatrix = performSubBytes(initialRoundMatrix);
-    const shiftRowsMatrix = performShiftRows(subBytesMatrix);
-    const mixColumnsMatrix = performMixColumns(shiftRowsMatrix);
-
-    steps.push({
-      id: 1,
-      title: '1. Plaintext to State Matrix',
-      description: 'Blok 16-byte pertama dari Teks Asli (Plaintext) diubah ke bentuk heksadesimal dan disusun dalam matriks 4x4.',
-      matrixBefore: stateMatrix,
+  blocks.forEach((block, index) => {
+    const { ciphertext: plain, trace } = decryptBlockWithTrace(block, expandedKey, rounds);
+    outputs.push(plain);
+    summaries.push({
+      index,
+      inputHex: toHex(block).toUpperCase(),
+      outputHex: toHex(plain).toUpperCase(),
+      detailed: index === 0,
     });
-
-    steps.push({
-      id: 2,
-      title: '2. Initial AddRoundKey',
-      description: 'Nilai State Matrix awal di-XOR (⊕) secara matematis dengan Key Matrix dari kata sandi Anda.',
-      matrixBefore: stateMatrix,
-      matrixKey: keyMatrix,
-      matrixAfter: initialRoundMatrix,
-    });
-
-    steps.push({
-      id: 3,
-      title: '3. Round 1: SubBytes (Substitusi Aktual S-Box)',
-      description: 'Setiap byte dalam matriks disubstitusi (diganti) secara matematis menggunakan tabel AES S-Box asli (Rijndael Substitution Box). Ini adalah nilai kalkulasi sebenarnya.',
-      matrixBefore: initialRoundMatrix,
-      matrixAfter: subBytesMatrix,
-    });
-
-    steps.push({
-      id: 4,
-      title: '4. Round 1: ShiftRows (Rotasi Baris Aktual)',
-      description: 'Permutasi di mana baris matriks digeser secara siklikal ke kiri (Baris 1 digeser 1, Baris 2 digeser 2, Baris 3 digeser 3).',
-      matrixBefore: subBytesMatrix,
-      matrixAfter: shiftRowsMatrix,
-    });
-
-    steps.push({
-      id: 5,
-      title: '5. Round 1: MixColumns (Kalkulasi Galois Field Asli)',
-      description: 'Setiap kolom dikalikan dengan matriks polinomial statis menggunakan matematika Galois Field (GF 2^8). Nilai di bawah adalah hasil operasi perkalian dan XOR tingkat bit yang sebenarnya terjadi pada AES.',
-      matrixBefore: shiftRowsMatrix,
-      matrixAfter: mixColumnsMatrix,
-    });
-  } else {
-    try {
-      const bytes = CryptoJS.AES.decrypt(text, key);
-      const decoded = bytes.toString(CryptoJS.enc.Utf8);
-      if (!decoded) {
-        throw new Error('CryptoJS returned an empty plaintext');
-      }
-      resultText = decoded;
-    } catch {
-      throw new CipherError('AES_DECRYPT_FAILED');
+    if (index === 0) {
+      steps = buildDecryptSteps(block, expandedKey, trace, keyBytes.length);
     }
+  });
 
-    steps.push({
-      id: 1,
-      title: '1. Base64 Decoding',
-      description: 'Teks sandi dikonversi dari Base64 kembali ke array of bytes.',
-    });
-    steps.push({
-      id: 2,
-      title: '2. Decryption Operations',
-      description: 'Proses AES dijalankan terbalik (InvShiftRows, InvSubBytes, AddRoundKey) menggunakan CryptoJS secara aman.',
-    });
+  const paddedPlaintext = new Uint8Array(outputs.length * AES_BLOCK_SIZE);
+  outputs.forEach((block, index) => {
+    paddedPlaintext.set(block, index * AES_BLOCK_SIZE);
+  });
+
+  const unpadded = unpadPkcs7(paddedPlaintext);
+
+  let plaintext: string;
+  try {
+    plaintext = textDecoder.decode(unpadded);
+  } catch {
+    throw new CipherError(
+      'AES_DECRYPT_FAILED',
+      'The decrypted bytes are not valid UTF-8 text, so the key is probably wrong.'
+    );
   }
 
-  return { resultText, steps };
+  return {
+    resultText: plaintext,
+    steps,
+    blocks: summaries,
+    mode,
+    keyBytes: keyBytes.length,
+    rounds,
+    blockCount: blocks.length,
+    paddingBytes: paddedPlaintext.length - unpadded.length,
+    modeOfOperation: 'ECB',
+  };
 }

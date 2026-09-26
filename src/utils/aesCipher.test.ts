@@ -15,20 +15,128 @@ describe('processAES round trip', () => {
     }
   });
 
-  it('round-trips unicode text and empty-ish content', () => {
-    const encrypted = processAES('Halo dunia 123', KEY_128, 'encrypt').resultText;
-    expect(processAES(encrypted, KEY_128, 'decrypt').resultText).toBe('Halo dunia 123');
+  it('round-trips unicode, punctuation and a long input', () => {
+    for (const text of [
+      'Halo dunia 123',
+      'symbols: !@#$%^&*()_+-=[]{}|;:\'",.<>/?',
+      'a'.repeat(500),
+      'éèê mixed with ascii',
+    ]) {
+      const encrypted = processAES(text, KEY_128, 'encrypt').resultText;
+      expect(processAES(encrypted, KEY_128, 'decrypt').resultText, JSON.stringify(text.slice(0, 20))).toBe(text);
+    }
   });
 
-  it('emits base64 ciphertext rather than raw binary', () => {
-    const encrypted = processAES('Hello', KEY_128, 'encrypt').resultText;
-    expect(encrypted).toMatch(/^[A-Za-z0-9+/=]+$/);
+  it('handles a single character and a text of exactly 16 bytes', () => {
+    for (const text of ['A', '0123456789abcdef']) {
+      const encrypted = processAES(text, KEY_128, 'encrypt').resultText;
+      expect(processAES(encrypted, KEY_128, 'decrypt').resultText).toBe(text);
+    }
   });
 
-  it('returns five visualization steps on encrypt', () => {
+  it('emits lower-case-free hexadecimal, one block after another', () => {
+    const encrypted = processAES('Attack at dawn', KEY_128, 'encrypt').resultText;
+    expect(encrypted).toMatch(/^[0-9A-F]+$/);
+    expect(encrypted.length % 32).toBe(0);
+  });
+});
+
+describe('processAES determinism', () => {
+  it('produces the same ciphertext every run for the same key and text', () => {
+    // This was impossible with CryptoJS passphrase mode, which generated a
+    // random salt on every call. AES-ECB with a fixed key is deterministic,
+    // which is exactly the weakness that motivates using a real mode of
+    // operation such as CBC or GCM.
+    const first = processAES('Attack at dawn', KEY_128, 'encrypt').resultText;
+    const second = processAES('Attack at dawn', KEY_128, 'encrypt').resultText;
+    expect(first).toBe(second);
+  });
+});
+
+describe('processAES padding', () => {
+  it('adds a whole padding block when the text already fills a block', () => {
+    const result = processAES('0123456789abcdef', KEY_128, 'encrypt');
+    expect(result.blockCount).toBe(2);
+    expect(result.paddingBytes).toBe(16);
+  });
+
+  it('adds between 1 and 16 padding bytes otherwise', () => {
+    expect(processAES('a', KEY_128, 'encrypt').paddingBytes).toBe(15);
+    expect(processAES('0123456789abcde', KEY_128, 'encrypt').paddingBytes).toBe(1);
+  });
+
+  it('reports the padding it removed on decrypt', () => {
+    const encrypted = processAES('0123456789abcdef', KEY_128, 'encrypt').resultText;
+    expect(processAES(encrypted, KEY_128, 'decrypt').paddingBytes).toBe(16);
+  });
+});
+
+describe('processAES block handling', () => {
+  it('splits a long input into 16-byte blocks and traces only the first', () => {
+    const result = processAES('a'.repeat(70), KEY_128, 'encrypt');
+    expect(result.blockCount).toBe(5);
+    expect(result.blocks).toHaveLength(5);
+    expect(result.blocks.filter((block) => block.detailed)).toHaveLength(1);
+    expect(result.blocks[0].detailed).toBe(true);
+  });
+
+  it('reports the key size, round count and mode of operation', () => {
+    const result = processAES('Hello', KEY_256, 'encrypt');
+    expect(result.keyBytes).toBe(32);
+    expect(result.rounds).toBe(14);
+    expect(result.modeOfOperation).toBe('ECB');
+    expect(result.mode).toBe('encrypt');
+  });
+});
+
+describe('processAES visualization', () => {
+  it('shows every round of the cipher, not just the first one', () => {
+    const { steps, rounds } = processAES('Hello', KEY_128, 'encrypt');
+    // One step for the plaintext, one for key expansion, then SubBytes,
+    // ShiftRows, MixColumns and AddRoundKey for each round except the last,
+    // which has no MixColumns. Plus the final ciphertext readout.
+    const expected = 2 + rounds * 4 - 1 + 1;
+    expect(steps).toHaveLength(expected);
+    expect(steps[0].title).toContain('Plaintext block');
+    expect(steps[1].title).toContain('Key expansion');
+    expect(steps[steps.length - 1].title).toContain('Ciphertext block');
+  });
+
+  it('never shows a MixColumns step for the final round', () => {
+    const { steps, rounds } = processAES('Hello', KEY_128, 'encrypt');
+    const mixSteps = steps.filter((step) => step.title.includes('MixColumns'));
+    expect(mixSteps).toHaveLength(rounds - 1);
+  });
+
+  it('gives every step a 4x4 matrix set', () => {
     const { steps } = processAES('Hello', KEY_128, 'encrypt');
-    expect(steps).toHaveLength(5);
-    expect(steps[0].matrixBefore).toHaveLength(4);
+    for (const step of steps) {
+      for (const matrix of [step.matrixBefore, step.matrixKey, step.matrixAfter]) {
+        if (!matrix) continue;
+        expect(matrix).toHaveLength(4);
+        for (const row of matrix) {
+          expect(row).toHaveLength(4);
+          for (const cell of row) expect(cell).toMatch(/^[0-9A-F]{2}$/);
+        }
+      }
+    }
+  });
+
+  it('mirrors the steps when decrypting', () => {
+    const key = KEY_128;
+    const encrypted = processAES('Attack at dawn', key, 'encrypt').resultText;
+    const { steps } = processAES(encrypted, key, 'decrypt');
+    expect(steps[0].title).toContain('Ciphertext block');
+    expect(steps.some((step) => step.title.includes('InvShiftRows'))).toBe(true);
+    expect(steps.some((step) => step.title.includes('InvSubBytes'))).toBe(true);
+    expect(steps.some((step) => step.title.includes('InvMixColumns'))).toBe(true);
+    expect(steps[steps.length - 1].title).toContain('Recovered plaintext');
+  });
+
+  it('ends the encrypt trace with the ciphertext it reports', () => {
+    const result = processAES('Attack at dawn', KEY_128, 'encrypt');
+    const finalStep = result.steps[result.steps.length - 1];
+    expect(finalStep.extraInfo).toContain(result.blocks[0].outputHex);
   });
 });
 
@@ -49,32 +157,31 @@ describe('processAES validation', () => {
     // character count would have rejected this key.
     const accented = (count: number) => '\u00e9'.repeat(count);
 
-    expect(new TextEncoder().encode(accented(8)).length).toBe(16);
-    expect(processAES('Hello', accented(8), 'encrypt').steps).toHaveLength(5);
-
-    expect(new TextEncoder().encode(accented(12)).length).toBe(24);
-    expect(processAES('Hello', accented(12), 'encrypt').steps).toHaveLength(5);
-
-    expect(new TextEncoder().encode(accented(16)).length).toBe(32);
-    expect(processAES('Hello', accented(16), 'encrypt').steps).toHaveLength(5);
+    expect(processAES('Hello', accented(8), 'encrypt').keyBytes).toBe(16);
+    expect(processAES('Hello', accented(12), 'encrypt').keyBytes).toBe(24);
+    expect(processAES('Hello', accented(16), 'encrypt').keyBytes).toBe(32);
 
     // 9 of them is 18 bytes, which is not a valid AES key size.
     expectCipherError(() => processAES('Hello', accented(9), 'encrypt'), 'AES_KEY_LENGTH');
   });
 
+  it('rejects ciphertext that is not hexadecimal', () => {
+    expectCipherError(() => processAES('not hex!', KEY_128, 'decrypt'), 'AES_CIPHERTEXT_FORMAT');
+    expectCipherError(() => processAES('0x1234', KEY_128, 'decrypt'), 'AES_CIPHERTEXT_FORMAT');
+  });
+
+  it('rejects ciphertext that is not a whole number of blocks', () => {
+    expectCipherError(() => processAES('ABCD', KEY_128, 'decrypt'), 'AES_CIPHERTEXT_FORMAT');
+  });
+
   it('rejects decrypting with the wrong key', () => {
-    const encrypted = processAES('Hello', KEY_128, 'encrypt').resultText;
-    expectCipherError(
-      () => processAES(encrypted, KEY_256, 'decrypt'),
-      'AES_DECRYPT_FAILED'
-    );
+    const encrypted = processAES('Attack at dawn', KEY_128, 'encrypt').resultText;
+    expectCipherError(() => processAES(encrypted, KEY_256, 'decrypt'), 'AES_DECRYPT_FAILED');
   });
 
-  it('rejects ciphertext that is not valid base64 AES output', () => {
-    expectCipherError(() => processAES('not-a-ciphertext', KEY_128, 'decrypt'), 'AES_DECRYPT_FAILED');
+  it('rejects ciphertext that was tampered with', () => {
+    const encrypted = processAES('Attack at dawn', KEY_128, 'encrypt').resultText;
+    const flipped = (encrypted[0] === '0' ? '1' : '0') + encrypted.slice(1);
+    expectCipherError(() => processAES(flipped, KEY_128, 'decrypt'), 'AES_DECRYPT_FAILED');
   });
-});
-
-describe('processAES determinism', () => {
-  it.todo('should produce a stable ciphertext for a given key, which needs the native AES rewrite');
 });
