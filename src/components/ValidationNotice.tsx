@@ -13,7 +13,7 @@ export function ValidationNotice({ info, className }: ValidationNoticeProps) {
   if (!info) return null;
 
   return (
-    <Alert variant="destructive" className={className}>
+    <Alert variant="destructive" className={className} role="alert">
       <TriangleAlert aria-hidden="true" />
       <AlertTitle>{info.title}</AlertTitle>
       <AlertDescription>

@@ -11,6 +11,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { ArrowRight, Lock, Unlock, TriangleAlert } from 'lucide-react';
 import { ValidationNotice } from '@/components/ValidationNotice';
+import { ResultStatus } from '@/components/ResultStatus';
+import { CopyButton } from '@/components/CopyButton';
 import { useCipherRun } from '@/hooks/useCipherRun';
 import { CipherError } from '@/lib/cipherError';
 import { checkInputLength } from '@/lib/cipherLimits';
@@ -125,6 +127,7 @@ export default function VigenereCipherPage() {
                   <p className="text-2xl font-mono text-center break-all text-foreground uppercase">
                     {result.resultText}
                   </p>
+                  <CopyButton value={result.resultText} />
                 </>
               ) : error ? (
                 <p className="text-muted-foreground flex items-center">
@@ -138,6 +141,7 @@ export default function VigenereCipherPage() {
                 </p>
               )}
             </div>
+            <ResultStatus hasResult={Boolean(result)} error={error} mode={mode} />
           </CardContent>
         </Card>
       </div>

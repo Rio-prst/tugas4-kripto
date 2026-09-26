@@ -10,6 +10,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { ArrowRight, Lock, Unlock, TriangleAlert } from 'lucide-react';
 import { ValidationNotice } from '@/components/ValidationNotice';
+import { ResultStatus } from '@/components/ResultStatus';
+import { CopyButton } from '@/components/CopyButton';
 import { useCipherRun } from '@/hooks/useCipherRun';
 import { CipherError } from '@/lib/cipherError';
 import { checkInputLength } from '@/lib/cipherLimits';
@@ -99,11 +101,14 @@ export default function LfsrCipherPage() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="bg-muted rounded-lg p-6 min-h-[220px] flex items-center justify-center border">
+            <div className="bg-muted rounded-lg p-6 min-h-[220px] flex flex-col items-center justify-center gap-4 border">
               {result ? (
-                <p className="text-lg font-mono text-center break-all text-foreground">
-                  {result.resultText}
-                </p>
+                <>
+                  <p className="text-lg font-mono text-center break-all text-foreground">
+                    {result.resultText}
+                  </p>
+                  <CopyButton value={result.resultText} />
+                </>
               ) : error ? (
                 <p className="text-muted-foreground flex items-center">
                   <TriangleAlert className="w-5 h-5 mr-2" />
@@ -116,6 +121,7 @@ export default function LfsrCipherPage() {
                 </p>
               )}
             </div>
+            <ResultStatus hasResult={Boolean(result)} error={error} mode={mode} />
           </CardContent>
         </Card>
       </div>
