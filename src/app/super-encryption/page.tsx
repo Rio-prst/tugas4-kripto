@@ -14,6 +14,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Lock, Unlock, ShieldCheck, ChevronDown, TriangleAlert } from 'lucide-react';
 import { ValidationNotice } from '@/components/ValidationNotice';
+import { ResultStatus } from '@/components/ResultStatus';
+import { CopyButton } from '@/components/CopyButton';
 import { useCipherRun } from '@/hooks/useCipherRun';
 import { CipherError, isCipherError } from '@/lib/cipherError';
 import { checkInputLength } from '@/lib/cipherLimits';
@@ -272,14 +274,17 @@ export default function SuperEncryptionPage() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="bg-background rounded-lg p-6 min-h-[150px] flex items-center justify-center border shadow-inner">
+              <div className="bg-background rounded-lg p-6 min-h-[150px] flex flex-col items-center justify-center gap-4 border">
                 {result ? (
-                  <p className="text-2xl font-mono text-center break-all text-primary font-bold">
-                    {result.finalOut}
-                  </p>
+                  <>
+                    <p className="text-2xl font-mono text-center break-all text-primary font-bold">
+                      {result.finalOut}
+                    </p>
+                    <CopyButton value={result.finalOut} />
+                  </>
                 ) : error ? (
                   <p className="text-muted-foreground flex items-center">
-                    <TriangleAlert className="w-5 h-5 mr-2" />
+                    <TriangleAlert aria-hidden="true" className="w-5 h-5 mr-2" />
                     No result. See the message above.
                   </p>
                 ) : (
@@ -288,6 +293,7 @@ export default function SuperEncryptionPage() {
                   </p>
                 )}
               </div>
+              <ResultStatus hasResult={Boolean(result)} error={error} mode="encrypt" noun="super-encrypted text" />
             </CardContent>
           </Card>
 

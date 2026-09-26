@@ -7,8 +7,10 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { ArrowRight, Lock, Unlock, ArrowDown, TriangleAlert } from 'lucide-react';
+import { ArrowRight, Lock, Unlock, ArrowDown, TriangleAlert, Eye, EyeOff } from 'lucide-react';
 import { ValidationNotice } from '@/components/ValidationNotice';
+import { ResultStatus } from '@/components/ResultStatus';
+import { CopyButton } from '@/components/CopyButton';
 import { useCipherRun } from '@/hooks/useCipherRun';
 import { CipherError } from '@/lib/cipherError';
 import { checkInputLength } from '@/lib/cipherLimits';
@@ -16,6 +18,7 @@ import { checkInputLength } from '@/lib/cipherLimits';
 export default function AesCipherPage() {
   const [inputText, setInputText] = useState('');
   const [shiftKey, setShiftKey] = useState('');
+  const [showKey, setShowKey] = useState(false);
   const { result, error, run, mode, setMode } = useCipherRun<AesResult>();
 
   const handleProcess = (selectedMode: 'encrypt' | 'decrypt') => {
@@ -79,14 +82,33 @@ export default function AesCipherPage() {
             </div>
             
             <div className="space-y-2">
-              <Label htmlFor="shift-key">Secret Password</Label>
-              <Input
-                id="shift-key"
-                type="password"
-                placeholder="SuperSecretKey123"
-                value={shiftKey}
-                onChange={(e) => setShiftKey(e.target.value)}
-              />
+              <Label htmlFor="shift-key">Secret Key</Label>
+              <div className="flex space-x-2">
+                <Input
+                  id="shift-key"
+                  type={showKey ? 'text' : 'password'}
+                  placeholder="SuperSecretKey123"
+                  value={shiftKey}
+                  onChange={(e) => setShiftKey(e.target.value)}
+                  className="flex-1"
+                />
+                {/* The page prints the derived round keys, so being unable to
+                    read the key that produced them is a dead end. */}
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  onClick={() => setShowKey((v) => !v)}
+                  aria-pressed={showKey}
+                >
+                  {showKey ? <EyeOff aria-hidden="true" /> : <Eye aria-hidden="true" />}
+                  <span className="sr-only">{showKey ? 'Hide key' : 'Show key'}</span>
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Any text. It is stretched into 128, 192, or 256 bits, so there is no
+                password strength to judge here.
+              </p>
             </div>
 
             <div className="flex space-x-4">
@@ -121,23 +143,27 @@ export default function AesCipherPage() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="bg-muted rounded-lg p-6 min-h-[220px] flex items-center justify-center border">
+            <div className="bg-muted rounded-lg p-6 min-h-[220px] flex flex-col items-center justify-center gap-4 border">
               {result ? (
-                <p className="text-lg font-mono text-center break-all text-foreground">
-                  {result.resultText}
-                </p>
+                <>
+                  <p className="text-lg font-mono text-center break-all text-foreground">
+                    {result.resultText}
+                  </p>
+                  <CopyButton value={result.resultText} label="Copy hex" />
+                </>
               ) : error ? (
                 <p className="text-muted-foreground flex items-center">
-                  <TriangleAlert className="w-5 h-5 mr-2" />
+                  <TriangleAlert aria-hidden="true" className="w-5 h-5 mr-2" />
                   No result. See the message on the left.
                 </p>
               ) : (
                 <p className="text-muted-foreground flex items-center">
-                  <ArrowRight className="w-5 h-5 mr-2 animate-pulse" />
+                  <ArrowRight aria-hidden="true" className="w-5 h-5 mr-2 animate-pulse" />
                   Awaiting input &amp; key
                 </p>
               )}
             </div>
+            <ResultStatus hasResult={Boolean(result)} error={error} mode={mode} noun="hex ciphertext" />
           </CardContent>
         </Card>
       </div>

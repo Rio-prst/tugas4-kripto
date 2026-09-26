@@ -8,7 +8,7 @@
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --font-sans: var(--font-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-mono: var(--font-mono);
   --font-heading: var(--font-sans);
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
@@ -140,4 +140,71 @@
 
 input, textarea, button, .card, table {
   border-radius: 0 !important;
+}
+
+/*
+ * Focus indicators.
+ *
+ * The brutalist rules above strip every box-shadow in the app, and Tailwind
+ * draws its focus rings with box-shadow (ring-3), so every focus indicator
+ * was being removed along with the decorative shadows. Focus is therefore
+ * redrawn here with outline, which those rules leave alone.
+ *
+ * This is deliberately !important so it wins against the outline-none that
+ * the button base classes apply. A keyboard user has to be able to see where
+ * they are, and that must not lose to a visual style.
+ */
+a:focus-visible,
+button:focus-visible,
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible,
+summary:focus-visible,
+[tabindex]:focus-visible {
+  outline: 3px solid var(--ring) !important;
+  outline-offset: 2px !important;
+}
+
+/* Dark mode is a pure inversion, so links would otherwise be unreadable. */
+.dark a:not([class*="bg-"]) {
+  text-decoration-color: currentColor;
+}
+
+@media print {
+  /*
+   * Printing a step-by-step trace is the one thing this app is genuinely
+   * useful for, so the navigation and the input form are dropped and the
+   * content is allowed to run full width.
+   */
+  [data-print-hidden] {
+    display: none !important;
+  }
+
+  body {
+    height: auto !important;
+    overflow: visible !important;
+  }
+
+  main {
+    overflow: visible !important;
+    padding: 0 !important;
+  }
+
+  .card {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  table {
+    break-inside: auto;
+  }
+
+  tr {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  a[href^="/"]::after {
+    content: "";
+  }
 }
