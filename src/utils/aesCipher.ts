@@ -115,7 +115,6 @@ export function processAES(text: string, key: string, mode: 'encrypt' | 'decrypt
       
       // For true AES, the initial key relies on a Key Expansion schedule (Rijndael key schedule). 
       // To show accurate math for round 1 while keeping it understandable, we derive the actual 1st round key block:
-      const rawKeyWords = CryptoJS.enc.Utf8.parse(key);
       const evpKDF = CryptoJS.EvpKDF(key, '', { keySize: 4, iterations: 1 }); // Simplistic key derivation for visual matching
       const keyMatrix = createStateMatrix(evpKDF.toString()); 
 
@@ -180,7 +179,7 @@ export function processAES(text: string, key: string, mode: 'encrypt' | 'decrypt
         description: 'Proses AES dijalankan terbalik (InvShiftRows, InvSubBytes, AddRoundKey) menggunakan CryptoJS secara aman.',
       });
     }
-  } catch (e) {
+  } catch {
     resultText = 'ERROR: Decryption failed. Please check your Key and Ciphertext.';
   }
 
