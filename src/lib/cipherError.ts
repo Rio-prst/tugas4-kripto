@@ -19,6 +19,7 @@ export type CipherErrorCode =
   | 'SEED_ALL_ZERO'
   // AES
   | 'AES_KEY_LENGTH'
+  | 'AES_DECRYPT_FAILED'
   // Shared
   | 'INPUT_TOO_LONG'
   | 'UNKNOWN';
@@ -104,6 +105,11 @@ const MESSAGES: Record<CipherErrorCode, CipherErrorInfo> = {
     title: 'AES key must be 16, 24, or 32 bytes',
     detail: 'AES only accepts key sizes of 128, 192, or 256 bits, which is 16, 24, or 32 bytes.',
     hint: 'A 16-character ASCII key is the simplest choice.',
+  },
+  AES_DECRYPT_FAILED: {
+    title: 'Decryption failed',
+    detail: 'The ciphertext could not be decrypted with this key. Either the key is wrong or the ciphertext has been altered or truncated.',
+    hint: 'Check that the ciphertext was copied in full, including any padding characters.',
   },
   INPUT_TOO_LONG: {
     title: 'Input is too long',
