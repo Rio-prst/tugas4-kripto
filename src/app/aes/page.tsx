@@ -117,7 +117,7 @@ export default function AesCipherPage() {
           <CardHeader>
             <CardTitle>Final Result</CardTitle>
             <CardDescription>
-              {mode === 'encrypt' ? 'Base64 Encoded Ciphertext' : 'Decrypted Plaintext'}
+              {mode === 'encrypt' ? 'Hexadecimal Ciphertext (ECB)' : 'Decrypted Plaintext'}
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -145,9 +145,12 @@ export default function AesCipherPage() {
       {result && result.steps.length > 0 && (
         <Card className="animate-in fade-in slide-in-from-bottom-4 duration-500">
           <CardHeader>
-            <CardTitle>Real Step-by-Step Matrix (Round 1)</CardTitle>
+            <CardTitle>Real Step-by-Step Matrix ({result.rounds} rounds)</CardTitle>
             <CardDescription>
-              Unlike classical ciphers, AES works on 128-bit blocks (16 bytes) processed in a 4x4 matrix through multiple rounds. This shows the EXACT mathematical outputs of the first round.
+              AES works on 16-byte blocks through {result.rounds} rounds. Every matrix below is the real
+              output of that operation, computed by an implementation checked against the known-answer
+              vectors in FIPS-197. The trace follows the first block; all {result.blockCount} block
+              {result.blockCount === 1 ? '' : 's'} are listed underneath.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-8">
@@ -165,15 +168,15 @@ export default function AesCipherPage() {
 
                   {(step.matrixBefore || step.matrixAfter) && (
                     <div className="mt-6 flex flex-col md:flex-row items-center justify-center gap-6">
-                      {step.matrixBefore && renderMatrix(step.matrixBefore, step.matrixKey ? 'State Matrix' : 'Before')}
-                      
+                      {step.matrixBefore && renderMatrix(step.matrixBefore, 'Before')}
+
                       {step.matrixKey && (
                         <>
                           <div className="flex flex-col items-center text-muted-foreground my-2 md:my-0">
                             <span className="text-2xl font-bold">⊕</span>
                             <span className="text-[10px] uppercase font-bold tracking-widest mt-1">XOR</span>
                           </div>
-                          {renderMatrix(step.matrixKey, 'Key Matrix')}
+                          {renderMatrix(step.matrixKey, 'Round key')}
                         </>
                       )}
 
@@ -185,12 +188,46 @@ export default function AesCipherPage() {
                         </div>
                       )}
 
-                      {step.matrixAfter && renderMatrix(step.matrixAfter, step.matrixKey ? 'Initial Round Matrix' : 'After')}
+                      {step.matrixAfter && renderMatrix(step.matrixAfter, 'After')}
                     </div>
                   )}
                 </div>
               </div>
             ))}
+          </CardContent>
+        </Card>
+      )}
+
+      {result && result.blockCount > 1 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>All blocks</CardTitle>
+            <CardDescription>
+              Each block is encrypted independently, which is what ECB means. The same plaintext block
+              therefore always produces the same ciphertext block under the same key.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              {result.blocks.map((block) => (
+                <div
+                  key={block.index}
+                  className="flex flex-col sm:flex-row sm:items-center gap-2 p-3 bg-muted/30 rounded-md border text-sm"
+                >
+                  <span className="font-bold shrink-0 w-24">
+                    {mode === 'encrypt' ? 'Plaintext' : 'Ciphertext'} {block.index}
+                  </span>
+                  <code className="font-mono text-xs break-all">{block.inputHex}</code>
+                  <ArrowRight className="hidden sm:block w-4 h-4 shrink-0 text-muted-foreground" />
+                  <code className="font-mono text-xs break-all">{block.outputHex}</code>
+                  {block.detailed && (
+                    <span className="text-[10px] uppercase font-bold tracking-widest text-primary shrink-0">
+                      traced above
+                    </span>
+                  )}
+                </div>
+              ))}
+            </div>
           </CardContent>
         </Card>
       )}
