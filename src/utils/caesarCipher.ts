@@ -1,9 +1,18 @@
-import { CipherResult, CipherStep } from '../types/crypto';
+import { CipherStep, CipherResult } from '../types/crypto';
+import { CipherError } from '@/lib/cipherError';
 
 export function processCaesar(text: string, shift: number, mode: 'encrypt' | 'decrypt'): CipherResult {
   const steps: CipherStep[] = [];
   let resultText = '';
-  
+
+  if (!Number.isInteger(shift)) {
+    const shown = Number.isNaN(shift) ? 'empty or not a number' : `"${shift}"`;
+    throw new CipherError(
+      'SHIFT_NOT_INTEGER',
+      `The shift you entered is ${shown}, but the Caesar cipher needs a whole number.`
+    );
+  }
+
   // Ensure shift is within 0-25 and positive
   const effectiveShift = ((mode === 'encrypt' ? shift : -shift) % 26 + 26) % 26;
   const isDecrypt = mode === 'decrypt';

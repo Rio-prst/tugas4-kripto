@@ -1,4 +1,5 @@
 import CryptoJS from 'crypto-js';
+import { CipherError } from '@/lib/cipherError';
 
 export interface AesVisualStep {
   id: number;
@@ -107,80 +108,96 @@ export function processAES(text: string, key: string, mode: 'encrypt' | 'decrypt
   const steps: AesVisualStep[] = [];
   let resultText = '';
 
-  try {
-    if (mode === 'encrypt') {
-      resultText = CryptoJS.AES.encrypt(text, key).toString();
-      
-      const stateMatrix = createStateMatrix(text);
-      
-      // For true AES, the initial key relies on a Key Expansion schedule (Rijndael key schedule). 
-      // To show accurate math for round 1 while keeping it understandable, we derive the actual 1st round key block:
-      const evpKDF = CryptoJS.EvpKDF(key, '', { keySize: 4, iterations: 1 }); // Simplistic key derivation for visual matching
-      const keyMatrix = createStateMatrix(evpKDF.toString()); 
+  if (!text) {
+    throw new CipherError('EMPTY_INPUT');
+  }
 
-      const initialRoundMatrix = xorMatrices(stateMatrix, keyMatrix);
-      const subBytesMatrix = performSubBytes(initialRoundMatrix);
-      const shiftRowsMatrix = performShiftRows(subBytesMatrix);
-      const mixColumnsMatrix = performMixColumns(shiftRowsMatrix);
-      
-      steps.push({
-        id: 1,
-        title: '1. Plaintext to State Matrix',
-        description: 'Blok 16-byte pertama dari Teks Asli (Plaintext) diubah ke bentuk heksadesimal dan disusun dalam matriks 4x4.',
-        matrixBefore: stateMatrix,
-      });
+  // Measure bytes rather than string length, so a key containing non-ASCII
+  // characters is not silently accepted at the wrong size.
+  const keyBytes = new TextEncoder().encode(key).length;
+  if (keyBytes !== 16 && keyBytes !== 24 && keyBytes !== 32) {
+    throw new CipherError(
+      'AES_KEY_LENGTH',
+      `The key "${key}" is ${keyBytes} byte(s) long.`
+    );
+  }
 
-      steps.push({
-        id: 2,
-        title: '2. Initial AddRoundKey',
-        description: 'Nilai State Matrix awal di-XOR (⊕) secara matematis dengan Key Matrix dari kata sandi Anda.',
-        matrixBefore: stateMatrix,
-        matrixKey: keyMatrix,
-        matrixAfter: initialRoundMatrix,
-      });
+  if (mode === 'encrypt') {
+    resultText = CryptoJS.AES.encrypt(text, key).toString();
 
-      steps.push({
-        id: 3,
-        title: '3. Round 1: SubBytes (Substitusi Aktual S-Box)',
-        description: 'Setiap byte dalam matriks disubstitusi (diganti) secara matematis menggunakan tabel AES S-Box asli (Rijndael Substitution Box). Ini adalah nilai kalkulasi sebenarnya.',
-        matrixBefore: initialRoundMatrix,
-        matrixAfter: subBytesMatrix,
-      });
+    const stateMatrix = createStateMatrix(text);
 
-      steps.push({
-        id: 4,
-        title: '4. Round 1: ShiftRows (Rotasi Baris Aktual)',
-        description: 'Permutasi di mana baris matriks digeser secara siklikal ke kiri (Baris 1 digeser 1, Baris 2 digeser 2, Baris 3 digeser 3).',
-        matrixBefore: subBytesMatrix,
-        matrixAfter: shiftRowsMatrix,
-      });
+    // For true AES, the initial key relies on a Key Expansion schedule (Rijndael key schedule). 
+    // To show accurate math for round 1 while keeping it understandable, we derive the actual 1st round key block:
+    const evpKDF = CryptoJS.EvpKDF(key, '', { keySize: 4, iterations: 1 }); // Simplistic key derivation for visual matching
+    const keyMatrix = createStateMatrix(evpKDF.toString()); 
 
-      steps.push({
-        id: 5,
-        title: '5. Round 1: MixColumns (Kalkulasi Galois Field Asli)',
-        description: 'Setiap kolom dikalikan dengan matriks polinomial statis menggunakan matematika Galois Field (GF 2^8). Nilai di bawah adalah hasil operasi perkalian dan XOR tingkat bit yang sebenarnya terjadi pada AES.',
-        matrixBefore: shiftRowsMatrix,
-        matrixAfter: mixColumnsMatrix,
-      });
+    const initialRoundMatrix = xorMatrices(stateMatrix, keyMatrix);
+    const subBytesMatrix = performSubBytes(initialRoundMatrix);
+    const shiftRowsMatrix = performShiftRows(subBytesMatrix);
+    const mixColumnsMatrix = performMixColumns(shiftRowsMatrix);
 
-    } else {
+    steps.push({
+      id: 1,
+      title: '1. Plaintext to State Matrix',
+      description: 'Blok 16-byte pertama dari Teks Asli (Plaintext) diubah ke bentuk heksadesimal dan disusun dalam matriks 4x4.',
+      matrixBefore: stateMatrix,
+    });
+
+    steps.push({
+      id: 2,
+      title: '2. Initial AddRoundKey',
+      description: 'Nilai State Matrix awal di-XOR (⊕) secara matematis dengan Key Matrix dari kata sandi Anda.',
+      matrixBefore: stateMatrix,
+      matrixKey: keyMatrix,
+      matrixAfter: initialRoundMatrix,
+    });
+
+    steps.push({
+      id: 3,
+      title: '3. Round 1: SubBytes (Substitusi Aktual S-Box)',
+      description: 'Setiap byte dalam matriks disubstitusi (diganti) secara matematis menggunakan tabel AES S-Box asli (Rijndael Substitution Box). Ini adalah nilai kalkulasi sebenarnya.',
+      matrixBefore: initialRoundMatrix,
+      matrixAfter: subBytesMatrix,
+    });
+
+    steps.push({
+      id: 4,
+      title: '4. Round 1: ShiftRows (Rotasi Baris Aktual)',
+      description: 'Permutasi di mana baris matriks digeser secara siklikal ke kiri (Baris 1 digeser 1, Baris 2 digeser 2, Baris 3 digeser 3).',
+      matrixBefore: subBytesMatrix,
+      matrixAfter: shiftRowsMatrix,
+    });
+
+    steps.push({
+      id: 5,
+      title: '5. Round 1: MixColumns (Kalkulasi Galois Field Asli)',
+      description: 'Setiap kolom dikalikan dengan matriks polinomial statis menggunakan matematika Galois Field (GF 2^8). Nilai di bawah adalah hasil operasi perkalian dan XOR tingkat bit yang sebenarnya terjadi pada AES.',
+      matrixBefore: shiftRowsMatrix,
+      matrixAfter: mixColumnsMatrix,
+    });
+  } else {
+    try {
       const bytes = CryptoJS.AES.decrypt(text, key);
-      resultText = bytes.toString(CryptoJS.enc.Utf8);
-      if (!resultText) throw new Error('Invalid key or corrupted data');
-
-      steps.push({
-        id: 1,
-        title: '1. Base64 Decoding',
-        description: 'Teks sandi dikonversi dari Base64 kembali ke array of bytes.',
-      });
-      steps.push({
-        id: 2,
-        title: '2. Decryption Operations',
-        description: 'Proses AES dijalankan terbalik (InvShiftRows, InvSubBytes, AddRoundKey) menggunakan CryptoJS secara aman.',
-      });
+      const decoded = bytes.toString(CryptoJS.enc.Utf8);
+      if (!decoded) {
+        throw new Error('CryptoJS returned an empty plaintext');
+      }
+      resultText = decoded;
+    } catch {
+      throw new CipherError('AES_DECRYPT_FAILED');
     }
-  } catch {
-    resultText = 'ERROR: Decryption failed. Please check your Key and Ciphertext.';
+
+    steps.push({
+      id: 1,
+      title: '1. Base64 Decoding',
+      description: 'Teks sandi dikonversi dari Base64 kembali ke array of bytes.',
+    });
+    steps.push({
+      id: 2,
+      title: '2. Decryption Operations',
+      description: 'Proses AES dijalankan terbalik (InvShiftRows, InvSubBytes, AddRoundKey) menggunakan CryptoJS secara aman.',
+    });
   }
 
   return { resultText, steps };

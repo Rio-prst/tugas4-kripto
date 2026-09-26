@@ -1,11 +1,20 @@
-import { CipherResult, CipherStep } from '../types/crypto';
+import { CipherStep, CipherResult } from '../types/crypto';
+import { CipherError } from '@/lib/cipherError';
 
 export function processVigenere(text: string, key: string, mode: 'encrypt' | 'decrypt'): CipherResult {
   const steps: CipherStep[] = [];
   let resultText = '';
-  
-  if (!key) key = 'A'; // Default to A (no shift) if key is empty
-  const upperKey = key.toUpperCase().replace(/[^A-Z]/g, '') || 'A';
+
+  if (!key.trim()) {
+    throw new CipherError('KEY_EMPTY');
+  }
+  const upperKey = key.toUpperCase().replace(/[^A-Z]/g, '');
+  if (!upperKey) {
+    throw new CipherError(
+      'KEY_NO_LETTERS',
+      `"${key}" has no A-Z letters in it.`
+    );
+  }
   
   const isDecrypt = mode === 'decrypt';
   let keyIndex = 0;
