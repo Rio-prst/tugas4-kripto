@@ -6,7 +6,11 @@ export function processCaesar(text: string, shift: number, mode: 'encrypt' | 'de
   let resultText = '';
 
   if (!Number.isInteger(shift)) {
-    throw new CipherError('SHIFT_NOT_INTEGER', `The value ${JSON.stringify(shift)} is not an integer.`);
+    const shown = Number.isNaN(shift) ? 'empty or not a number' : `"${shift}"`;
+    throw new CipherError(
+      'SHIFT_NOT_INTEGER',
+      `The shift you entered is ${shown}, but the Caesar cipher needs a whole number.`
+    );
   }
 
   // Ensure shift is within 0-25 and positive

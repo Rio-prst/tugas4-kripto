@@ -8,22 +8,26 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { ArrowRight, Lock, Unlock } from 'lucide-react';
+import { ArrowRight, Lock, Unlock, TriangleAlert } from 'lucide-react';
+import { ValidationNotice } from '@/components/ValidationNotice';
+import { useCipherRun } from '@/hooks/useCipherRun';
+import { CipherError } from '@/lib/cipherError';
+import { checkInputLength } from '@/lib/cipherLimits';
 
 export default function LfsrCipherPage() {
   const [inputText, setInputText] = useState('');
   const [seed, setSeed] = useState('1001');
-  const [result, setResult] = useState<LfsrResult | null>(null);
-  const [mode, setMode] = useState<'encrypt' | 'decrypt'>('encrypt');
+  const { result, error, run, mode, setMode } = useCipherRun<LfsrResult>();
 
   const handleProcess = (selectedMode: 'encrypt' | 'decrypt') => {
     setMode(selectedMode);
-    if (!inputText) {
-      setResult(null);
-      return;
-    }
-    const res = processLFSR(inputText, seed);
-    setResult(res);
+    run(() => {
+      if (!inputText) {
+        throw new CipherError('EMPTY_INPUT');
+      }
+      checkInputLength(inputText.length, 'lfsr');
+      return processLFSR(inputText, seed);
+    });
   };
 
   return (
@@ -82,6 +86,8 @@ export default function LfsrCipherPage() {
                 Decrypt
               </Button>
             </div>
+
+            <ValidationNotice info={error} />
           </CardContent>
         </Card>
 
@@ -97,6 +103,11 @@ export default function LfsrCipherPage() {
               {result ? (
                 <p className="text-lg font-mono text-center break-all text-foreground">
                   {result.resultText}
+                </p>
+              ) : error ? (
+                <p className="text-muted-foreground flex items-center">
+                  <TriangleAlert className="w-5 h-5 mr-2" />
+                  No result. See the message on the left.
                 </p>
               ) : (
                 <p className="text-muted-foreground flex items-center">

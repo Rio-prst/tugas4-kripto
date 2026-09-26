@@ -9,22 +9,26 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { ArrowRight, Lock, Unlock } from 'lucide-react';
+import { ArrowRight, Lock, Unlock, TriangleAlert } from 'lucide-react';
+import { ValidationNotice } from '@/components/ValidationNotice';
+import { useCipherRun } from '@/hooks/useCipherRun';
+import { CipherError } from '@/lib/cipherError';
+import { checkInputLength } from '@/lib/cipherLimits';
 
 export default function VigenereCipherPage() {
   const [inputText, setInputText] = useState('');
   const [shiftKey, setShiftKey] = useState('KEY');
-  const [result, setResult] = useState<CipherResult | null>(null);
-  const [mode, setMode] = useState<'encrypt' | 'decrypt'>('encrypt');
+  const { result, error, run, mode, setMode } = useCipherRun<CipherResult>();
 
   const handleProcess = (selectedMode: 'encrypt' | 'decrypt') => {
     setMode(selectedMode);
-    if (!inputText) {
-      setResult(null);
-      return;
-    }
-    const res = processVigenere(inputText, shiftKey, selectedMode);
-    setResult(res);
+    run(() => {
+      if (!inputText) {
+        throw new CipherError('EMPTY_INPUT');
+      }
+      checkInputLength(inputText.length, 'vigenere');
+      return processVigenere(inputText, shiftKey, selectedMode);
+    });
   };
 
   // Generate an array of repeated key characters matching the plaintext length (for visualization only)
@@ -101,6 +105,8 @@ export default function VigenereCipherPage() {
                 Decrypt
               </Button>
             </div>
+
+            <ValidationNotice info={error} />
           </CardContent>
         </Card>
 
@@ -120,6 +126,11 @@ export default function VigenereCipherPage() {
                     {result.resultText}
                   </p>
                 </>
+              ) : error ? (
+                <p className="text-muted-foreground flex items-center">
+                  <TriangleAlert className="w-5 h-5 mr-2" />
+                  No result. See the message on the left.
+                </p>
               ) : (
                 <p className="text-muted-foreground flex items-center">
                   <ArrowRight className="w-5 h-5 mr-2 animate-pulse" />

@@ -12,7 +12,11 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Lock, Unlock, ShieldCheck, ChevronDown } from 'lucide-react';
+import { Lock, Unlock, ShieldCheck, ChevronDown, TriangleAlert } from 'lucide-react';
+import { ValidationNotice } from '@/components/ValidationNotice';
+import { useCipherRun } from '@/hooks/useCipherRun';
+import { CipherError, isCipherError } from '@/lib/cipherError';
+import { checkInputLength } from '@/lib/cipherLimits';
 
 import { CipherResult } from '@/types/crypto';
 import { LfsrResult } from '@/utils/lfsrCipher';
@@ -29,59 +33,101 @@ interface PipelineResult {
   steps: ProcessStep[];
 }
 
+const STAGE_LABELS = {
+  caesar: 'Caesar Cipher',
+  vigenere: 'Vigenère Cipher',
+  lfsr: 'LFSR & Vernam',
+  rsa: 'RSA',
+} as const;
+
+/**
+ * Runs one pipeline stage and, if it fails, re-raises the same CipherError with
+ * the stage name attached. Without this the user sees a message about, say, a
+ * non-prime p but has no way to know it came from the RSA stage.
+ */
+function runStage<T>(stage: keyof typeof STAGE_LABELS, action: () => T): T {
+  try {
+    return action();
+  } catch (caught) {
+    if (isCipherError(caught)) {
+      throw new CipherError(
+        caught.code,
+        `This happened in the ${STAGE_LABELS[stage]} stage. ${caught.detail ?? ''}`.trim()
+      );
+    }
+    throw caught;
+  }
+}
+
 export default function SuperEncryptionPage() {
   const [inputText, setInputText] = useState('');
-  
+
   // Keys State
   const [caesarShift, setCaesarShift] = useState('3');
   const [vigenereKey, setVigenereKey] = useState('KEY');
   const [lfsrSeed, setLfsrSeed] = useState('1001');
-  // Gunakan prime yang lebih besar (p=17, q=19 -> n=323) agar > 255 (ASCII max) untuk mencegah data loss saat modulo
-  const [rsaP, setRsaP] = useState('17'); 
+  // p=17, q=19 -> n=323, which is above the 0-255 byte range so the LFSR output
+  // always satisfies the RSA requirement that every block m stays below n.
+  const [rsaP, setRsaP] = useState('17');
   const [rsaQ, setRsaQ] = useState('19');
   const [rsaE, setRsaE] = useState('11');
 
-  const [result, setResult] = useState<PipelineResult | null>(null);
-  const [mode, setMode] = useState<'encrypt' | 'decrypt'>('encrypt');
+  const { result, error, run, mode, setMode } = useCipherRun<PipelineResult>();
 
   const handleProcess = (selectedMode: 'encrypt' | 'decrypt') => {
     setMode(selectedMode);
-    if (!inputText) {
-      setResult(null);
-      return;
-    }
+    run(() => {
+      if (!inputText) {
+        throw new CipherError('EMPTY_INPUT');
+      }
+      checkInputLength(inputText.length, 'superEncryption');
 
-    if (selectedMode === 'encrypt') {
-      const cRes = processCaesar(inputText, parseInt(caesarShift) || 0, 'encrypt');
-      const vRes = processVigenere(cRes.resultText, vigenereKey, 'encrypt');
-      const lRes = processLFSR(vRes.resultText, lfsrSeed);
-      const rRes = processRSA(lRes.resultText, rsaP, rsaQ, rsaE, 'encrypt');
+      const shift = /^-?\d+$/.test(caesarShift.trim()) ? parseInt(caesarShift, 10) : Number.NaN;
 
-      setResult({
-        finalOut: rRes.resultText,
-        steps: [
-          { title: '1. Caesar Cipher', algorithm: 'caesar', output: cRes.resultText, data: cRes },
-          { title: '2. Vigenère Cipher', algorithm: 'vigenere', output: vRes.resultText, data: vRes },
-          { title: '3. LFSR & Vernam', algorithm: 'lfsr', output: lRes.resultText, data: lRes },
-          { title: '4. RSA (Public Key)', algorithm: 'rsa', output: rRes.resultText, data: rRes },
-        ]
-      });
-    } else {
-      const rRes = processRSA(inputText, rsaP, rsaQ, rsaE, 'decrypt');
-      const lRes = processLFSR(rRes.resultText, lfsrSeed);
-      const vRes = processVigenere(lRes.resultText, vigenereKey, 'decrypt');
-      const cRes = processCaesar(vRes.resultText, parseInt(caesarShift) || 0, 'decrypt');
+      if (selectedMode === 'encrypt') {
+        const cRes = runStage('caesar', () =>
+          processCaesar(inputText, shift, 'encrypt')
+        );
+        const vRes = runStage('vigenere', () =>
+          processVigenere(cRes.resultText, vigenereKey, 'encrypt')
+        );
+        const lRes = runStage('lfsr', () => processLFSR(vRes.resultText, lfsrSeed));
+        const rRes = runStage('rsa', () =>
+          processRSA(lRes.resultText, rsaP, rsaQ, rsaE, 'encrypt')
+        );
 
-      setResult({
+        return {
+          finalOut: rRes.resultText,
+          steps: [
+            { title: '1. Caesar Cipher', algorithm: 'caesar', output: cRes.resultText, data: cRes },
+            { title: '2. Vigenère Cipher', algorithm: 'vigenere', output: vRes.resultText, data: vRes },
+            { title: '3. LFSR & Vernam', algorithm: 'lfsr', output: lRes.resultText, data: lRes },
+            { title: '4. RSA (Public Key)', algorithm: 'rsa', output: rRes.resultText, data: rRes },
+          ],
+        };
+      }
+
+      const rRes = runStage('rsa', () =>
+        processRSA(inputText, rsaP, rsaQ, rsaE, 'decrypt')
+      );
+      const lRes = runStage('lfsr', () => processLFSR(rRes.resultText, lfsrSeed));
+      const vRes = runStage('vigenere', () =>
+        processVigenere(lRes.resultText, vigenereKey, 'decrypt')
+      );
+      const cRes = runStage('caesar', () =>
+        processCaesar(vRes.resultText, shift, 'decrypt')
+      );
+
+      return {
         finalOut: cRes.resultText,
         steps: [
           { title: '1. Dekripsi RSA', algorithm: 'rsa', output: rRes.resultText, data: rRes },
           { title: '2. Dekripsi LFSR (Vernam)', algorithm: 'lfsr', output: lRes.resultText, data: lRes },
           { title: '3. Dekripsi Vigenère', algorithm: 'vigenere', output: vRes.resultText, data: vRes },
           { title: '4. Dekripsi Caesar', algorithm: 'caesar', output: cRes.resultText, data: cRes },
-        ]
-      });
-    }
+        ],
+      };
+    });
   };
 
   // Helper renderers for dropdown tables
@@ -205,13 +251,15 @@ export default function SuperEncryptionPage() {
             </div>
 
             <div className="flex space-x-4 pt-2">
-              <Button onClick={() => handleProcess('encrypt')} disabled={!inputText} className="flex-1 bg-primary text-primary-foreground hover:bg-primary/90 h-12 text-lg">
+              <Button onClick={() => handleProcess('encrypt')} className="flex-1 bg-primary text-primary-foreground hover:bg-primary/90 h-12 text-lg">
                 <Lock className="w-5 h-5 mr-2" /> Encrypt Pipeline
               </Button>
-              <Button onClick={() => handleProcess('decrypt')} variant="secondary" disabled={!inputText} className="flex-1 h-12 text-lg border shadow-sm">
+              <Button onClick={() => handleProcess('decrypt')} variant="secondary" className="flex-1 h-12 text-lg border shadow-sm">
                 <Unlock className="w-5 h-5 mr-2" /> Decrypt Pipeline
               </Button>
             </div>
+
+            <ValidationNotice info={error} />
           </CardContent>
         </Card>
 
@@ -228,6 +276,11 @@ export default function SuperEncryptionPage() {
                 {result ? (
                   <p className="text-2xl font-mono text-center break-all text-primary font-bold">
                     {result.finalOut}
+                  </p>
+                ) : error ? (
+                  <p className="text-muted-foreground flex items-center">
+                    <TriangleAlert className="w-5 h-5 mr-2" />
+                    No result. See the message above.
                   </p>
                 ) : (
                   <p className="text-muted-foreground flex items-center">

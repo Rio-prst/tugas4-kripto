@@ -9,23 +9,29 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { ArrowRight, Lock, Unlock } from 'lucide-react';
+import { ArrowRight, Lock, Unlock, TriangleAlert } from 'lucide-react';
+import { ValidationNotice } from '@/components/ValidationNotice';
+import { useCipherRun } from '@/hooks/useCipherRun';
+import { CipherError } from '@/lib/cipherError';
+import { checkInputLength } from '@/lib/cipherLimits';
 
 export default function CaesarCipherPage() {
   const [inputText, setInputText] = useState('');
   const [shiftKey, setShiftKey] = useState<string>('3');
-  const [result, setResult] = useState<CipherResult | null>(null);
-  const [mode, setMode] = useState<'encrypt' | 'decrypt'>('encrypt');
+  const { result, error, run, mode, setMode } = useCipherRun<CipherResult>();
 
   const handleProcess = (selectedMode: 'encrypt' | 'decrypt') => {
     setMode(selectedMode);
-    if (!inputText) {
-      setResult(null);
-      return;
-    }
-    const numericShift = parseInt(shiftKey) || 0;
-    const res = processCaesar(inputText, numericShift, selectedMode);
-    setResult(res);
+    run(() => {
+      if (!inputText) {
+        throw new CipherError('EMPTY_INPUT');
+      }
+      checkInputLength(inputText.length, 'caesar');
+      const numericShift = /^-?\d+$/.test(shiftKey.trim())
+        ? parseInt(shiftKey, 10)
+        : Number.NaN;
+      return processCaesar(inputText, numericShift, selectedMode);
+    });
   };
 
   return (
@@ -68,14 +74,14 @@ export default function CaesarCipherPage() {
             </div>
 
             <div className="flex space-x-4">
-              <Button 
+              <Button
                 onClick={() => handleProcess('encrypt')}
                 className="flex-1 bg-primary text-primary-foreground hover:bg-primary/90"
               >
                 <Lock className="w-4 h-4 mr-2" />
                 Encrypt
               </Button>
-              <Button 
+              <Button
                 onClick={() => handleProcess('decrypt')}
                 variant="secondary"
                 className="flex-1"
@@ -84,6 +90,8 @@ export default function CaesarCipherPage() {
                 Decrypt
               </Button>
             </div>
+
+            <ValidationNotice info={error} />
           </CardContent>
         </Card>
 
@@ -100,6 +108,11 @@ export default function CaesarCipherPage() {
               {result ? (
                 <p className="text-2xl font-mono text-center break-all text-foreground">
                   {result.resultText}
+                </p>
+              ) : error ? (
+                <p className="text-muted-foreground flex items-center">
+                  <TriangleAlert className="w-5 h-5 mr-2" />
+                  No result. See the message on the left.
                 </p>
               ) : (
                 <p className="text-muted-foreground flex items-center">

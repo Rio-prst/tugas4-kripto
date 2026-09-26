@@ -8,24 +8,28 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { ArrowRight, Lock, Unlock, KeyRound } from 'lucide-react';
+import { ArrowRight, Lock, Unlock, KeyRound, TriangleAlert } from 'lucide-react';
+import { ValidationNotice } from '@/components/ValidationNotice';
+import { useCipherRun } from '@/hooks/useCipherRun';
+import { CipherError } from '@/lib/cipherError';
+import { checkInputLength } from '@/lib/cipherLimits';
 
 export default function RsaCipherPage() {
   const [inputText, setInputText] = useState('');
   const [pVal, setPVal] = useState('11');
   const [qVal, setQVal] = useState('13');
   const [eVal, setEVal] = useState('7');
-  const [result, setResult] = useState<RsaResult | null>(null);
-  const [mode, setMode] = useState<'encrypt' | 'decrypt'>('encrypt');
+  const { result, error, run, mode, setMode } = useCipherRun<RsaResult>();
 
   const handleProcess = (selectedMode: 'encrypt' | 'decrypt') => {
     setMode(selectedMode);
-    if (!inputText) {
-      setResult(null);
-      return;
-    }
-    const res = processRSA(inputText, pVal, qVal, eVal, selectedMode);
-    setResult(res);
+    run(() => {
+      if (!inputText.trim()) {
+        throw new CipherError('EMPTY_INPUT');
+      }
+      checkInputLength(inputText.length, 'rsa');
+      return processRSA(inputText, pVal, qVal, eVal, selectedMode);
+    });
   };
 
   return (
@@ -86,24 +90,30 @@ export default function RsaCipherPage() {
             </div>
 
             <div className="flex space-x-4">
-              <Button 
+              <Button
                 onClick={() => handleProcess('encrypt')}
-                disabled={!inputText}
                 className="flex-1 bg-primary text-primary-foreground hover:bg-primary/90"
               >
                 <Lock className="w-4 h-4 mr-2" />
                 Encrypt
               </Button>
-              <Button 
+              <Button
                 onClick={() => handleProcess('decrypt')}
                 variant="secondary"
-                disabled={!inputText}
                 className="flex-1"
               >
                 <Unlock className="w-4 h-4 mr-2" />
                 Decrypt
               </Button>
             </div>
+
+            <p className="text-xs text-muted-foreground">
+              Message space: a single character is encrypted as one block, so RSA
+              requires <code className="font-mono">0 &lt;= m &lt; n</code>. With the
+              default primes n = 143, which covers every ASCII character (code 0-127).
+            </p>
+
+            <ValidationNotice info={error} />
           </CardContent>
         </Card>
 
@@ -119,6 +129,11 @@ export default function RsaCipherPage() {
               {result ? (
                 <p className="text-2xl font-mono text-center break-all text-foreground">
                   {result.resultText}
+                </p>
+              ) : error ? (
+                <p className="text-muted-foreground flex items-center">
+                  <TriangleAlert className="w-5 h-5 mr-2" />
+                  No result. See the message on the left.
                 </p>
               ) : (
                 <p className="text-muted-foreground flex items-center">

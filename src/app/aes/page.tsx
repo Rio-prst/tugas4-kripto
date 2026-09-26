@@ -7,22 +7,29 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { ArrowRight, Lock, Unlock, ArrowDown } from 'lucide-react';
+import { ArrowRight, Lock, Unlock, ArrowDown, TriangleAlert } from 'lucide-react';
+import { ValidationNotice } from '@/components/ValidationNotice';
+import { useCipherRun } from '@/hooks/useCipherRun';
+import { CipherError } from '@/lib/cipherError';
+import { checkInputLength } from '@/lib/cipherLimits';
 
 export default function AesCipherPage() {
   const [inputText, setInputText] = useState('');
   const [shiftKey, setShiftKey] = useState('');
-  const [result, setResult] = useState<AesResult | null>(null);
-  const [mode, setMode] = useState<'encrypt' | 'decrypt'>('encrypt');
+  const { result, error, run, mode, setMode } = useCipherRun<AesResult>();
 
   const handleProcess = (selectedMode: 'encrypt' | 'decrypt') => {
     setMode(selectedMode);
-    if (!inputText || !shiftKey) {
-      setResult(null);
-      return;
-    }
-    const res = processAES(inputText, shiftKey, selectedMode);
-    setResult(res);
+    run(() => {
+      if (!inputText) {
+        throw new CipherError('EMPTY_INPUT');
+      }
+      if (!shiftKey) {
+        throw new CipherError('AES_KEY_LENGTH', 'No key was entered.');
+      }
+      checkInputLength(inputText.length, 'aes');
+      return processAES(inputText, shiftKey, selectedMode);
+    });
   };
 
   const renderMatrix = (matrix: string[][], label: string) => (
@@ -101,6 +108,8 @@ export default function AesCipherPage() {
                 Decrypt
               </Button>
             </div>
+
+            <ValidationNotice info={error} />
           </CardContent>
         </Card>
 
@@ -114,13 +123,18 @@ export default function AesCipherPage() {
           <CardContent>
             <div className="bg-muted rounded-lg p-6 min-h-[220px] flex items-center justify-center border">
               {result ? (
-                <p className={`text-lg font-mono text-center break-all ${result.resultText.includes('ERROR') ? 'text-destructive' : 'text-foreground'}`}>
+                <p className="text-lg font-mono text-center break-all text-foreground">
                   {result.resultText}
+                </p>
+              ) : error ? (
+                <p className="text-muted-foreground flex items-center">
+                  <TriangleAlert className="w-5 h-5 mr-2" />
+                  No result. See the message on the left.
                 </p>
               ) : (
                 <p className="text-muted-foreground flex items-center">
                   <ArrowRight className="w-5 h-5 mr-2 animate-pulse" />
-                  Awaiting input & key
+                  Awaiting input &amp; key
                 </p>
               )}
             </div>
