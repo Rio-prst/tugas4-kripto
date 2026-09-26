@@ -8,7 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { ArrowRight, Lock, Unlock, Zap } from 'lucide-react';
+import { ArrowRight, Lock, Unlock } from 'lucide-react';
 
 export default function LfsrCipherPage() {
   const [inputText, setInputText] = useState('');
@@ -22,7 +22,7 @@ export default function LfsrCipherPage() {
       setResult(null);
       return;
     }
-    const res = processLFSR(inputText, seed, selectedMode);
+    const res = processLFSR(inputText, seed);
     setResult(res);
   };
 

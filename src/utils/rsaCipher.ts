@@ -49,7 +49,7 @@ export function processRSA(text: string, pStr: string, qStr: string, eStr: strin
   const q = isPrime(parseInt(qStr)) ? parseInt(qStr) : 13;
   const n = p * q;
   const phi = (p - 1) * (q - 1);
-  let e = parseInt(eStr) || 7;
+  const e = parseInt(eStr) || 7;
   
   // Find d
   let d = 1;

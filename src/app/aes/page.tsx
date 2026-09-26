@@ -137,7 +137,7 @@ export default function AesCipherPage() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-8">
-            {result.steps.map((step, idx) => (
+            {result.steps.map((step) => (
               <div key={step.id} className="flex flex-col space-y-4">
                 <div className="bg-muted/30 p-4 rounded-lg border">
                   <h3 className="text-lg font-semibold">{step.title}</h3>

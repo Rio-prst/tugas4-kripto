@@ -12,18 +12,17 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { ArrowRight, Lock, Unlock, ShieldCheck, ChevronDown } from 'lucide-react';
+import { Lock, Unlock, ShieldCheck, ChevronDown } from 'lucide-react';
 
 import { CipherResult } from '@/types/crypto';
 import { LfsrResult } from '@/utils/lfsrCipher';
 import { RsaResult } from '@/utils/rsaCipher';
 
-interface ProcessStep {
-  title: string;
-  algorithm: 'caesar' | 'vigenere' | 'lfsr' | 'rsa';
-  output: string;
-  data: any;
-}
+type ProcessStep =
+  | { title: string; algorithm: 'caesar'; output: string; data: CipherResult }
+  | { title: string; algorithm: 'vigenere'; output: string; data: CipherResult }
+  | { title: string; algorithm: 'lfsr'; output: string; data: LfsrResult }
+  | { title: string; algorithm: 'rsa'; output: string; data: RsaResult };
 
 interface PipelineResult {
   finalOut: string;
@@ -55,7 +54,7 @@ export default function SuperEncryptionPage() {
     if (selectedMode === 'encrypt') {
       const cRes = processCaesar(inputText, parseInt(caesarShift) || 0, 'encrypt');
       const vRes = processVigenere(cRes.resultText, vigenereKey, 'encrypt');
-      const lRes = processLFSR(vRes.resultText, lfsrSeed, 'encrypt');
+      const lRes = processLFSR(vRes.resultText, lfsrSeed);
       const rRes = processRSA(lRes.resultText, rsaP, rsaQ, rsaE, 'encrypt');
 
       setResult({
@@ -69,7 +68,7 @@ export default function SuperEncryptionPage() {
       });
     } else {
       const rRes = processRSA(inputText, rsaP, rsaQ, rsaE, 'decrypt');
-      const lRes = processLFSR(rRes.resultText, lfsrSeed, 'decrypt');
+      const lRes = processLFSR(rRes.resultText, lfsrSeed);
       const vRes = processVigenere(lRes.resultText, vigenereKey, 'decrypt');
       const cRes = processCaesar(vRes.resultText, parseInt(caesarShift) || 0, 'decrypt');
 
@@ -92,7 +91,7 @@ export default function SuperEncryptionPage() {
         <TableRow><TableHead>Ori</TableHead><TableHead>Math</TableHead><TableHead>Result</TableHead></TableRow>
       </TableHeader>
       <TableBody>
-        {data.steps.map((s: any, i: number) => (
+        {data.steps.map((s, i) => (
           <TableRow key={i} className={!s.isAlphabetic ? 'opacity-50' : ''}>
             <TableCell className="font-bold">{s.originalChar}</TableCell>
             <TableCell className="font-mono text-xs">{s.formula}</TableCell>
@@ -109,7 +108,7 @@ export default function SuperEncryptionPage() {
         <TableRow><TableHead>Char</TableHead><TableHead>Txt Bin</TableHead><TableHead>Key Bin</TableHead><TableHead>XOR (Out)</TableHead></TableRow>
       </TableHeader>
       <TableBody>
-        {data.steps.map((s: any, i: number) => (
+        {data.steps.map((s, i) => (
           <TableRow key={i}>
             <TableCell className="font-bold">{s.char}</TableCell>
             <TableCell className="font-mono">{s.charBinary}</TableCell>
@@ -127,7 +126,7 @@ export default function SuperEncryptionPage() {
         <TableRow><TableHead>Char/Block</TableHead><TableHead>Code</TableHead><TableHead>Mod Exp</TableHead><TableHead>Out Code</TableHead></TableRow>
       </TableHeader>
       <TableBody>
-        {data.steps.map((s: any, i: number) => (
+        {data.steps.map((s, i) => (
           <TableRow key={i}>
             <TableCell className="font-bold">{s.char}</TableCell>
             <TableCell className="font-mono">{s.charCode}</TableCell>
