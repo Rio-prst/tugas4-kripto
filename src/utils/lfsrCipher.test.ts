@@ -13,7 +13,42 @@ describe('processLFSR keystream', () => {
     expect(steps[0].resultChar.charCodeAt(0)).toBe(219);
   });
 
-  it.todo('should be reversible if the register is rewound to the seed before decrypting');
+  it('regenerates the identical keystream for the same seed, which is what makes it reversible', () => {
+    // No rewinding is involved. processLFSR always starts from the seed, so a
+    // second call with the same seed replays the same keystream. Asserted
+    // separately because that is the actual premise of the round trip below:
+    // if the keystream ever stopped being reproducible, the round trip would
+    // fail for a reason that has nothing to do with XOR.
+    const first = processLFSR('Attack at dawn', '1001');
+    const second = processLFSR('Attack at dawn', '1001');
+
+    expect(first.steps.map((step) => step.keystreamBinary)).toEqual(
+      second.steps.map((step) => step.keystreamBinary),
+    );
+  });
+
+  it('is reversible, because XOR with the same keystream twice cancels', () => {
+    const encrypted = processLFSR('Attack at dawn', '1001');
+    const decrypted = processLFSR(encrypted.resultText, '1001');
+
+    // Encrypt and decrypt are the same operation here, so decrypting means
+    // running the identical keystream over the ciphertext a second time.
+    // Every byte comes back, including the ones that landed above 127.
+    expect(decrypted.resultText).toBe('Attack at dawn');
+  });
+
+  it('round trips text whose bytes span the full 0-255 range', () => {
+    // Guards the 8-bit assumption in the keystream loop: a result byte above
+    // 127 must still survive a second pass unchanged.
+    const allBytes = Array.from({ length: 256 }, (_, code) =>
+      String.fromCharCode(code),
+    ).join('');
+
+    const once = processLFSR(allBytes, '101101');
+    const twice = processLFSR(once.resultText, '101101');
+
+    expect(twice.resultText).toBe(allBytes);
+  });
 
   it('is deterministic for the same text and seed', () => {
     const first = processLFSR('Hello', '1001');

@@ -128,6 +128,15 @@ const MESSAGES: Record<CipherErrorCode, CipherErrorInfo> = {
   },
 };
 
+/**
+ * Every code, as a runtime list.
+ *
+ * The `CipherErrorCode` type is a union, which TypeScript erases, so a test
+ * that wants to prove every code is handled has no way to enumerate them.
+ * This gives it something to iterate over without duplicating the union.
+ */
+export const CIPHER_ERROR_CODES = Object.keys(MESSAGES) as CipherErrorCode[];
+
 export function describeCipherError(code: CipherErrorCode, detail?: string): CipherErrorInfo {
   const base = MESSAGES[code] ?? MESSAGES.UNKNOWN;
   return detail ? { ...base, detail: `${base.detail} ${detail}` } : base;
