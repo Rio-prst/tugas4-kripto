@@ -2,10 +2,18 @@ import { CipherError } from '@/lib/cipherError';
 
 export interface LfsrStep {
   id: number;
+  /** The input character when encrypting, the decoded byte when decrypting. */
   char: string;
+  /** The input byte in 8-bit binary, which is what the keystream is XORed with. */
   charBinary: string;
   keystreamBinary: string;
   xorResultBinary: string;
+  /** The XORed byte as two lowercase hex digits. Always populated. */
+  resultByteHex: string;
+  /**
+   * The XORed byte decoded back to a character. Not printable when the byte
+   * lands outside the visible range, which is why hex is the primary output.
+   */
   resultChar: string;
   shiftDetails: {
     stateBefore: string;
@@ -33,9 +41,12 @@ export interface LfsrResult {
   returnedToSeedAt: number | null;
 }
 
-export function processLFSR(text: string, seed: string): LfsrResult {
+export function processLFSR(
+  text: string,
+  seed: string,
+  mode: 'encrypt' | 'decrypt'
+): LfsrResult {
   const steps: LfsrStep[] = [];
-  let resultText = '';
 
   const trimmed = seed.trim();
   if (/[^01]/.test(trimmed)) {
@@ -71,14 +82,42 @@ export function processLFSR(text: string, seed: string): LfsrResult {
   let cycleLength: number | null = null;
   let returnedToSeedAt: number | null = null;
 
-  for (let i = 0; i < text.length; i++) {
-    const char = text[i];
-    const charBinary = char.charCodeAt(0).toString(2).padStart(8, '0');
+  // The XOR runs on bytes either way. Only the way bytes enter the cipher
+  // differs, which is why the mode exists: the app hands the ciphertext to the
+  // browser as hex, so decrypting has to read that hex back into bytes first.
+  const isDecrypt = mode === 'decrypt';
+  const inputBytes: number[] = [];
+
+  if (isDecrypt) {
+    const compact = text.replace(/\s+/g, '');
+    if (compact.length === 0 || !/^[0-9a-fA-F]+$/.test(compact)) {
+      throw new CipherError('CIPHERTEXT_NOT_HEX');
+    }
+    if (compact.length % 2 !== 0) {
+      throw new CipherError(
+        'CIPHERTEXT_NOT_HEX',
+        `The ciphertext has ${compact.length} hex digits, which is not a whole number of bytes.`
+      );
+    }
+    for (let i = 0; i < compact.length; i += 2) {
+      inputBytes.push(parseInt(compact.slice(i, i + 2), 16));
+    }
+  } else {
+    for (let i = 0; i < text.length; i++) {
+      inputBytes.push(text.charCodeAt(i));
+    }
+  }
+
+  let resultText = '';
+
+  for (let i = 0; i < inputBytes.length; i++) {
+    const byte = inputBytes[i];
+    const charBinary = byte.toString(2).padStart(8, '0');
 
     let keystreamBinary = '';
     const shiftDetails: LfsrStep['shiftDetails'] = [];
 
-    // Generate 8 bits of keystream for this character
+    // Generate 8 bits of keystream for this byte
     for (let b = 0; b < 8; b++) {
       const stateBefore = currentSeed;
       const bit1 = parseInt(currentSeed[outputTap]);
@@ -109,7 +148,7 @@ export function processLFSR(text: string, seed: string): LfsrResult {
       });
     }
 
-    // Vernam Cipher (XOR Plaintext with Keystream)
+    // Vernam Cipher (XOR the input byte with the keystream)
     let xorResultBinary = '';
     for (let bit = 0; bit < 8; bit++) {
       xorResultBinary += (
@@ -117,16 +156,25 @@ export function processLFSR(text: string, seed: string): LfsrResult {
       ).toString();
     }
 
-    const resultChar = String.fromCharCode(parseInt(xorResultBinary, 2));
-    resultText += resultChar;
+    const xoredByte = parseInt(xorResultBinary, 2);
+    const resultByteHex = xoredByte.toString(16).padStart(2, '0');
+
+    if (isDecrypt) {
+      // The recovered byte is readable, so hand back the character.
+      resultText += String.fromCharCode(xoredByte);
+    } else {
+      // Hex is the representation layer, so the output stays safe to copy.
+      resultText += resultByteHex;
+    }
 
     steps.push({
       id: i,
-      char,
+      char: String.fromCharCode(byte),
       charBinary,
       keystreamBinary,
       xorResultBinary,
-      resultChar,
+      resultByteHex,
+      resultChar: String.fromCharCode(xoredByte),
       shiftDetails,
     });
   }

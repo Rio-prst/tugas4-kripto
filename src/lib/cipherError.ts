@@ -17,6 +17,7 @@ export type CipherErrorCode =
   | 'SEED_NOT_BINARY'
   | 'SEED_TOO_SHORT'
   | 'SEED_ALL_ZERO'
+  | 'CIPHERTEXT_NOT_HEX'
   // AES
   | 'AES_KEY_LENGTH'
   | 'AES_CIPHERTEXT_FORMAT'
@@ -101,6 +102,12 @@ const MESSAGES: Record<CipherErrorCode, CipherErrorInfo> = {
     title: 'Seed is all zeros',
     detail: 'The all-zero state is an absorbing state: every new bit becomes 0 XOR 0 = 0, so the register can never leave it. The keystream would be all zeros, which means "encryption" would return the plaintext unchanged.',
     hint: 'Pick a seed with at least one 1, for example 1001 or 1010.',
+  },
+  CIPHERTEXT_NOT_HEX: {
+    title: 'Ciphertext must be hexadecimal',
+    detail:
+      'This page emits the XOR result as hexadecimal bytes, so decryption expects hex back: two digits per byte, 00 to ff, with no 0x prefix. Spaces and newlines are ignored.',
+    hint: 'Use the Encrypt button to produce a ciphertext you can paste back in.',
   },
   AES_KEY_LENGTH: {
     title: 'AES key must be 16, 24, or 32 bytes',

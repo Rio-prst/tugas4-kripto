@@ -75,8 +75,10 @@ export default function SuperEncryptionPage() {
   const [caesarShift, setCaesarShift] = useState('3');
   const [vigenereKey, setVigenereKey] = useState('KEY');
   const [lfsrSeed, setLfsrSeed] = useState('1001');
-  // p=17, q=19 -> n=323, which is above the 0-255 byte range so the LFSR output
-  // always satisfies the RSA requirement that every block m stays below n.
+  // The LFSR stage hands RSA a hex string, so RSA encrypts the hex characters
+  // ('0'-'9' and 'a'-'f', codes 48-102) rather than raw bytes. p=17, q=19
+  // gives n=323, which stays above 102, so every block still satisfies the RSA
+  // requirement that m stays below n.
   const [rsaP, setRsaP] = useState('17');
   const [rsaQ, setRsaQ] = useState('19');
   const [rsaE, setRsaE] = useState('11');
@@ -100,7 +102,9 @@ export default function SuperEncryptionPage() {
         const vRes = runStage('vigenere', () =>
           processVigenere(cRes.resultText, vigenereKey, 'encrypt')
         );
-        const lRes = runStage('lfsr', () => processLFSR(vRes.resultText, lfsrSeed));
+        const lRes = runStage('lfsr', () =>
+          processLFSR(vRes.resultText, lfsrSeed, 'encrypt')
+        );
         const rRes = runStage('rsa', () =>
           processRSA(lRes.resultText, rsaP, rsaQ, rsaE, 'encrypt')
         );
@@ -119,7 +123,9 @@ export default function SuperEncryptionPage() {
       const rRes = runStage('rsa', () =>
         processRSA(inputText, rsaP, rsaQ, rsaE, 'decrypt')
       );
-      const lRes = runStage('lfsr', () => processLFSR(rRes.resultText, lfsrSeed));
+      const lRes = runStage('lfsr', () =>
+        processLFSR(rRes.resultText, lfsrSeed, 'decrypt')
+      );
       const vRes = runStage('vigenere', () =>
         processVigenere(lRes.resultText, vigenereKey, 'decrypt')
       );
@@ -160,7 +166,7 @@ export default function SuperEncryptionPage() {
   const renderLfsrTable = (data: LfsrResult) => (
     <Table className="text-sm">
       <TableHeader>
-        <TableRow><TableHead>Char</TableHead><TableHead>Txt Bin</TableHead><TableHead>Key Bin</TableHead><TableHead>XOR (Out)</TableHead></TableRow>
+        <TableRow><TableHead>Char</TableHead><TableHead>Txt Bin</TableHead><TableHead>Key Bin</TableHead><TableHead>XOR (Out)</TableHead><TableHead>Hex</TableHead></TableRow>
       </TableHeader>
       <TableBody>
         {data.steps.map((s, i) => (
@@ -169,6 +175,7 @@ export default function SuperEncryptionPage() {
             <TableCell className="font-mono">{s.charBinary}</TableCell>
             <TableCell className="font-mono text-primary">{s.keystreamBinary}</TableCell>
             <TableCell className="font-mono font-bold">{s.xorResultBinary}</TableCell>
+            <TableCell className="font-mono font-bold text-primary">{s.resultByteHex}</TableCell>
           </TableRow>
         ))}
       </TableBody>
