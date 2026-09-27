@@ -136,10 +136,10 @@ export default function SuperEncryptionPage() {
       return {
         finalOut: cRes.resultText,
         steps: [
-          { title: '1. Dekripsi RSA', algorithm: 'rsa', output: rRes.resultText, data: rRes },
-          { title: '2. Dekripsi LFSR (Vernam)', algorithm: 'lfsr', output: lRes.resultText, data: lRes },
-          { title: '3. Dekripsi Vigenère', algorithm: 'vigenere', output: vRes.resultText, data: vRes },
-          { title: '4. Dekripsi Caesar', algorithm: 'caesar', output: cRes.resultText, data: cRes },
+          { title: '1. Decrypt RSA', algorithm: 'rsa', output: rRes.resultText, data: rRes },
+          { title: '2. Decrypt LFSR (Vernam)', algorithm: 'lfsr', output: lRes.resultText, data: lRes },
+          { title: '3. Decrypt Vigenère', algorithm: 'vigenere', output: vRes.resultText, data: vRes },
+          { title: '4. Decrypt Caesar', algorithm: 'caesar', output: cRes.resultText, data: cRes },
         ],
       };
     });
@@ -209,7 +209,7 @@ export default function SuperEncryptionPage() {
         </h1>
         <p className="text-muted-foreground">
           Kombinasi berantai (Pipeline) dari 4 algoritma sekaligus untuk keamanan maksimal.
-          Klik setiap tahapan di bawah untuk melihat detail kalkulasi matematis per bloknya!
+          Click any stage below to see the per-block calculation detail.
         </p>
       </div>
 
@@ -217,7 +217,7 @@ export default function SuperEncryptionPage() {
         <Card className="border-primary/50 shadow-md">
           <CardHeader>
             <CardTitle>Master Control Panel</CardTitle>
-            <CardDescription>Masukkan teks dan semua kunci dari keempat algoritma.</CardDescription>
+            <CardDescription>Enter your text and all four algorithm keys.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
             <div className="space-y-2">
@@ -225,7 +225,7 @@ export default function SuperEncryptionPage() {
               <Textarea
                 id="input-text"
                 {...describedBy('inputText', errorCode, NOTICE_ID)}
-                placeholder={mode === 'encrypt' ? 'Masukkan Plaintext...' : 'Masukkan Ciphertext (angka terpisah spasi)...'}
+                placeholder={mode === 'encrypt' ? 'Enter plaintext...' : 'Enter ciphertext (space-separated numbers)...'}
                 value={inputText}
                 onChange={(e) => setInputText(e.target.value)}
                 className="min-h-[100px] resize-none border-primary/30 focus-visible:ring-primary"
@@ -233,7 +233,7 @@ export default function SuperEncryptionPage() {
             </div>
             
             <div className="space-y-4 bg-muted/30 p-4 rounded-lg border">
-              <h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground">Kunci Klasik</h3>
+              <h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground">Classical Keys</h3>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="caesar-shift">Caesar Shift</Label>
@@ -245,7 +245,7 @@ export default function SuperEncryptionPage() {
                 </div>
               </div>
 
-              <h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground mt-4 border-t pt-4">Kunci Modern</h3>
+              <h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground mt-4 border-t pt-4">Modern Keys</h3>
               <div className="space-y-2">
                 <Label htmlFor="lfsr-seed">LFSR Binary Seed</Label>
                 <Input id="lfsr-seed" type="text" value={lfsrSeed} onChange={(e) => setLfsrSeed(e.target.value.replace(/[^01]/g, ''))} className="font-mono tracking-widest" {...describedBy('lfsrSeed', errorCode, NOTICE_ID)} />
@@ -285,7 +285,7 @@ export default function SuperEncryptionPage() {
             <CardHeader>
               <CardTitle>Final Result</CardTitle>
               <CardDescription>
-                Hasil mutlak dari keempat lapisan algoritma.
+                The final output of all four algorithm layers.
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -308,16 +308,21 @@ export default function SuperEncryptionPage() {
                   </p>
                 )}
               </div>
-              <ResultStatus hasResult={Boolean(result)} error={error} mode="encrypt" noun="super-encrypted text" />
+              <ResultStatus
+                hasResult={Boolean(result)}
+                error={error}
+                mode={mode}
+                noun={mode === 'encrypt' ? 'super-encrypted text' : 'super-decrypted text'}
+              />
             </CardContent>
           </Card>
 
-          {/* Visualisasi Pipeline Berantai Dropdown */}
+          {/* Chained Pipeline Visualisation */}
           {result && (
             <Card className="animate-in fade-in slide-in-from-right-8 duration-700 flex-1">
               <CardHeader>
-                <CardTitle>Pipeline Transformasi Dropdown</CardTitle>
-                <CardDescription>Klik setiap tahapan untuk melihat tabel detail kalkulasi matematis (per karakter/blok).</CardDescription>
+                <CardTitle>Pipeline Transformation Dropdown</CardTitle>
+                <CardDescription>Click each stage to see the detailed calculation table (per character/block).</CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="flex flex-col">
