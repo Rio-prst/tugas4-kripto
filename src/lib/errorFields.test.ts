@@ -3,7 +3,7 @@ import {
   CIPHER_ERROR_CODES,
   type CipherErrorCode,
 } from '@/lib/cipherError';
-import { FIELD_CODES, isFieldInvalid, mappedErrorCodes } from '@/lib/errorFields';
+import { FIELD_CODES, describedBy, isFieldInvalid, mappedErrorCodes } from '@/lib/errorFields';
 
 describe('isFieldInvalid', () => {
   it('marks nothing when there is no error', () => {
@@ -42,6 +42,36 @@ describe('isFieldInvalid', () => {
     // UNKNOWN carries no field information, so it must not light up an input.
     expect(isFieldInvalid('inputText', 'UNKNOWN')).toBe(false);
     expect(isFieldInvalid('rsaP', 'UNKNOWN')).toBe(false);
+  });
+});
+
+describe('describedBy', () => {
+  it('returns nothing at all while no error is showing', () => {
+    // Empty rather than false, so React omits the attributes instead of
+    // marking every input on the page invalid by default.
+    expect(describedBy('inputText', null, 'validation-notice')).toEqual({});
+    expect(describedBy('rsaP', null, 'validation-notice')).toEqual({});
+  });
+
+  it('points the field at the notice and marks it invalid when the code is its own', () => {
+    expect(describedBy('rsaQ', 'Q_NOT_PRIME', 'validation-notice')).toEqual({
+      'aria-invalid': true,
+      'aria-describedby': 'validation-notice',
+    });
+  });
+
+  it('leaves an unrelated field completely untouched', () => {
+    // The spread is applied unconditionally in the JSX, so this is the branch
+    // that stops q being flagged while p is the one at fault.
+    expect(describedBy('rsaQ', 'P_NOT_PRIME', 'validation-notice')).toEqual({});
+    expect(describedBy('inputText', 'P_NOT_PRIME', 'validation-notice')).toEqual({});
+  });
+
+  it('passes the notice id through unchanged, whatever it is', () => {
+    expect(describedBy('rsaP', 'P_NOT_PRIME', 'some-other-id')).toEqual({
+      'aria-invalid': true,
+      'aria-describedby': 'some-other-id',
+    });
   });
 });
 

@@ -11,7 +11,6 @@ const navItems = [
   { name: 'Caesar Cipher', href: '/caesar' },
   { name: 'Vigenère Cipher', href: '/vigenere' },
   { name: 'LFSR Stream Cipher', href: '/lfsr' },
-  { name: 'AES (Block Cipher)', href: '/aes' },
   { name: 'RSA (Public Key)', href: '/rsa' },
   { name: 'Super Encryption', href: '/super-encryption' },
 ];

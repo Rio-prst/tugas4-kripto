@@ -17,8 +17,6 @@ export const FIELD_CODES = {
     'CIPHERTEXT_NOT_NUMERIC',
     'CIPHERTEXT_OUT_OF_RANGE',
     'CIPHERTEXT_NOT_HEX',
-    'AES_CIPHERTEXT_FORMAT',
-    'AES_DECRYPT_FAILED',
     'INPUT_TOO_LONG',
   ],
   /** Caesar shift on /caesar. */
@@ -33,8 +31,6 @@ export const FIELD_CODES = {
   rsaE: ['E_INVALID', 'E_NOT_COPRIME'],
   /** LFSR seed. */
   lfsrSeed: ['SEED_NOT_BINARY', 'SEED_TOO_SHORT', 'SEED_ALL_ZERO'],
-  /** AES key. */
-  aesKey: ['AES_KEY_LENGTH'],
 } as const satisfies Record<string, readonly CipherErrorCode[]>;
 
 export type FieldRole = keyof typeof FIELD_CODES;
