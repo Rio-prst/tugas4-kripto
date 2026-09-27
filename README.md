@@ -1,24 +1,75 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# KryptoLearn
 
-## Getting Started
+A Next.js app that shows how classical and modern ciphers actually work, by
+running them in the browser and displaying the state at every step instead of
+just the final answer.
 
-First, run the development server:
+| Page | What it shows |
+| --- | --- |
+| `/caesar` | Per-character alphabet index, shift, and wraparound |
+| `/vigenere` | Key alignment, repeated key, and per-character addition mod 26 |
+| `/lfsr` | Register state at every shift, the tap XOR, and the generated keystream |
+| `/aes` | Full Rijndael round-by-round state matrices and the expanded key schedule |
+| `/rsa` | Per-character modular exponentiation and the key derivation |
+| `/super-encryption` | All four chained, with each intermediate layer |
+
+There is no server and no persistence. Every cipher is implemented in
+`src/utils/`, is pure, and is covered by unit tests.
+
+## Running it
 
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Then open [http://localhost:3000](http://localhost:3000). The root redirects to
+the Caesar page.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```bash
+npm test         # vitest
+npm run lint     # eslint
+npm run typecheck
+npm run build
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Known limitations
+
+These are deliberate, and worth knowing before drawing conclusions from the app.
+
+### AES runs in ECB mode, and that is not a production choice
+
+AES only *defines* the block cipher. The block cipher is not a mode of
+operation, and this app uses ECB, the one mode with no chaining.
+
+ECB encrypts every block independently, so **the same 16-byte plaintext block
+always produces the same ciphertext block** under the same key. Encrypt a
+document containing repeated structure and the repetition survives into the
+ciphertext in plain sight. The "All blocks" panel on the AES page is there
+precisely so this is visible rather than merely described: feed it a repeated
+block and the repeated output appears.
+
+CBC, CTR, or GCM would fix this. They are not implemented, and adding one is a
+change in behaviour, not a setting. Treat the AES page as a visualisation of the
+Rijndael round function, not as a usable encryption scheme.
+
+The RSA page has the same problem for a different reason: the default primes
+give a modulus of 143, small enough to factor by hand. That is on purpose, so
+the arithmetic can be checked by hand, but it is not encryption in any sense.
+
+### The LFSR only handles byte-sized characters
+
+Each character is converted to 8 bits, and only 8 bits of the keystream are
+generated per character. That is fine for every code point from 0 to 255.
+
+Above that, the conversion pads the binary form to 8 characters and then reads
+only those 8, so **the leading bits are kept and the trailing bits are silently
+discarded**. `U+0100` (256) becomes `0b10000000`, that is 128, not 0. The page
+does not warn about this, because the input is usually plain text; it only
+surfaces if you paste an unusual character into it.
+
+The truncation is one-way, so text that came out of the LFSR is always safe to
+feed back in.
 
 ## Input validation rules
 
@@ -70,8 +121,10 @@ configuration). With a 4-bit seed and the `(L−1, L−2)` tap, all 15 states ar
 visited, which confirms the register is running at full length.
 
 Encryption and decryption are the same operation here, since XOR with a
-keystream is its own inverse. The `mode` parameter that used to be threaded
-through the function had no effect and was removed.
+keystream is its own inverse. No rewind of the register is involved: the
+function always starts from the seed, so running the identical keystream over
+the ciphertext a second time already returns the plaintext. That is what the
+round-trip test in `lfsrCipher.test.ts` asserts.
 
 ### Caesar and Vigenère
 
@@ -86,17 +139,15 @@ AES only defines key sizes of 128, 192, and 256 bits, so keys must be 16, 24, or
 32 bytes. The key is measured in bytes rather than string characters, so a key
 containing non-ASCII characters is not silently accepted at the wrong size.
 
-## Learn More
+The page encrypts to one long hexadecimal string, so decryption expects
+hexadecimal back, with no spaces and no `0x` prefix. See the note on ECB above
+for why the mode is worth knowing about.
 
-To learn more about Next.js, take a look at the following resources:
+## Tests
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+`npm test` runs Vitest over the pure cipher utilities. The suite covers round
+trips for every cipher, the published AES vectors from FIPS-197 Appendix A, B
+and C, and every validation rule listed above. There is no component testing:
+the cipher pages are thin wrappers over the utilities, and the tests target the
+logic rather than the rendering.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
