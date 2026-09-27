@@ -3,14 +3,32 @@ import { processLFSR } from '@/utils/lfsrCipher';
 import { expectCipherError } from '@/test-utils';
 
 describe('processLFSR keystream', () => {
-  it('produces a hand-derived first 8 keystream bits for seed 1001', () => {
-    // Walking the register by hand from 1001 with taps on the two rightmost
-    // bits gives the output sequence 1,0,0,1,1,0,1,0.
-    const { steps } = processLFSR('A', '1001');
-    expect(steps[0].keystreamBinary).toBe('10011010');
+  it('reproduces the worked cycle table in docs/LFSR.md exactly', () => {
+    // The guide writes the state as b4 b3 b2 b1, takes the keystream bit from
+    // b1, and feeds back b1 XOR b4. Its eight worked cycles are transcribed
+    // here as [state before, feedback, state after].
+    const { steps } = processLFSR('e', '1111');
+    expect(
+      steps[0].shiftDetails.map((s) => [s.stateBefore, s.newBit, s.stateAfter])
+    ).toEqual([
+      ['1111', '0', '0111'],
+      ['0111', '1', '1011'],
+      ['1011', '0', '0101'],
+      ['0101', '1', '1010'],
+      ['1010', '1', '1101'],
+      ['1101', '0', '0110'],
+      ['0110', '0', '0011'],
+      ['0011', '1', '1001'],
+    ]);
+  });
 
-    // 'A' is 0b01000001, XOR 0b10011010 = 0b11011011 = 219.
-    expect(steps[0].resultChar.charCodeAt(0)).toBe(219);
+  it('derives the guide keystream 11110101 and the ciphertext 10010000', () => {
+    // The eight output bits of the table above concatenate to 11110101, and
+    // 'e' is 0b01100101, so 0b01100101 XOR 0b11110101 = 0b10010000.
+    const { steps } = processLFSR('e', '1111');
+    expect(steps[0].keystreamBinary).toBe('11110101');
+    expect(steps[0].xorResultBinary).toBe('10010000');
+    expect(steps[0].resultChar.charCodeAt(0)).toBe(0b10010000);
   });
 
   it('regenerates the identical keystream for the same seed, which is what makes it reversible', () => {
@@ -65,6 +83,17 @@ describe('processLFSR keystream', () => {
 describe('processLFSR period reporting', () => {
   it('reaches the maximal period of 15 for the classic 4-bit seed', () => {
     const result = processLFSR('ABCDEFGH', '1001');
+    expect(result.maxPeriod).toBe(15);
+    expect(result.observedStates).toBe(15);
+    expect(result.cycleLength).toBe(15);
+    expect(result.returnedToSeedAt).toBe(15);
+  });
+
+  it('still returns to the guide seed after 15 shifts with the b1 / b_n taps', () => {
+    // Maximal length belongs to the feedback polynomial, and moving the second
+    // tap from b2 to b_n changes that polynomial. Asserted separately so the tap
+    // change cannot quietly shorten the cycle the period panel advertises.
+    const result = processLFSR('ABCDEFGHIJ', '1111');
     expect(result.maxPeriod).toBe(15);
     expect(result.observedStates).toBe(15);
     expect(result.cycleLength).toBe(15);

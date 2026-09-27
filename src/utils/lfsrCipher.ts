@@ -57,9 +57,11 @@ export function processLFSR(text: string, seed: string): LfsrResult {
   const initialSeed = trimmed;
   let currentSeed = initialSeed;
 
-  // We will use the two rightmost bits for the XOR tap (simplest visual LFSR)
-  const tap1 = currentSeed.length - 1;
-  const tap2 = currentSeed.length - 2;
+  // Per the guide in docs/LFSR.md: the state is written b_n ... b1, the
+  // keystream bit is b1 (the rightmost bit), and the feedback is b1 XOR b_n,
+  // so the second tap is the leftmost bit rather than the next one over.
+  const outputTap = currentSeed.length - 1; // b1, rightmost
+  const feedbackTap = 0; // b_n, leftmost
 
   const maxPeriod = Math.pow(2, initialSeed.length) - 1;
   const visited = new Map<string, number>();
@@ -79,11 +81,11 @@ export function processLFSR(text: string, seed: string): LfsrResult {
     // Generate 8 bits of keystream for this character
     for (let b = 0; b < 8; b++) {
       const stateBefore = currentSeed;
-      const bit1 = parseInt(currentSeed[tap1]);
-      const bit2 = parseInt(currentSeed[tap2]);
+      const bit1 = parseInt(currentSeed[outputTap]);
+      const bit2 = parseInt(currentSeed[feedbackTap]);
       const newBit = (bit1 ^ bit2).toString();
 
-      const outBit = currentSeed[currentSeed.length - 1];
+      const outBit = currentSeed[outputTap];
       keystreamBinary += outBit;
 
       // Shift right and insert new bit at the left
