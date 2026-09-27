@@ -60,3 +60,22 @@ export function isFieldInvalid(
 export function mappedErrorCodes(): CipherErrorCode[] {
   return [...CODE_TO_FIELD.keys()];
 }
+
+/**
+ * The props that tie a field to the shared error notice.
+ *
+ * Returned undefined rather than false so React omits the attributes entirely
+ * while the field is fine, instead of marking every input invalid on every
+ * page until an error happens.
+ */
+export function describedBy(
+  role: FieldRole,
+  code: CipherErrorCode | null,
+  noticeId: string,
+): {
+  'aria-invalid'?: true;
+  'aria-describedby'?: string;
+} {
+  if (!isFieldInvalid(role, code)) return {};
+  return { 'aria-invalid': true, 'aria-describedby': noticeId };
+}

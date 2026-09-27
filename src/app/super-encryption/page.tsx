@@ -14,6 +14,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Lock, Unlock, ShieldCheck, ChevronDown, TriangleAlert } from 'lucide-react';
 import { ValidationNotice } from '@/components/ValidationNotice';
+import { describedBy } from '@/lib/errorFields';
 import { ResultStatus } from '@/components/ResultStatus';
 import { CopyButton } from '@/components/CopyButton';
 import { useCipherRun } from '@/hooks/useCipherRun';
@@ -23,6 +24,12 @@ import { checkInputLength } from '@/lib/cipherLimits';
 import { CipherResult } from '@/types/crypto';
 import { LfsrResult } from '@/utils/lfsrCipher';
 import { RsaResult } from '@/utils/rsaCipher';
+
+/**
+ * The id the error notice is given, referenced by aria-describedby on the
+ * field at fault so the message is announced as part of that field.
+ */
+const NOTICE_ID = 'validation-notice';
 
 type ProcessStep =
   | { title: string; algorithm: 'caesar'; output: string; data: CipherResult }
@@ -74,7 +81,7 @@ export default function SuperEncryptionPage() {
   const [rsaQ, setRsaQ] = useState('19');
   const [rsaE, setRsaE] = useState('11');
 
-  const { result, error, run, mode, setMode } = useCipherRun<PipelineResult>();
+  const { result, error, errorCode, run, mode, setMode } = useCipherRun<PipelineResult>();
 
   const handleProcess = (selectedMode: 'encrypt' | 'decrypt') => {
     setMode(selectedMode);
@@ -190,7 +197,7 @@ export default function SuperEncryptionPage() {
     <div className="container mx-auto py-10 space-y-8 max-w-5xl">
       <div className="flex flex-col space-y-2">
         <h1 className="text-4xl font-bold tracking-tight flex items-center gap-3">
-          <ShieldCheck className="w-10 h-10 text-primary" />
+          <ShieldCheck aria-hidden="true" className="w-10 h-10 text-primary" />
           Super Encryption
         </h1>
         <p className="text-muted-foreground">
@@ -210,6 +217,7 @@ export default function SuperEncryptionPage() {
               <Label htmlFor="input-text" className="font-bold">Text Input</Label>
               <Textarea
                 id="input-text"
+                {...describedBy('inputText', errorCode, NOTICE_ID)}
                 placeholder={mode === 'encrypt' ? 'Masukkan Plaintext...' : 'Masukkan Ciphertext (angka terpisah spasi)...'}
                 value={inputText}
                 onChange={(e) => setInputText(e.target.value)}
@@ -222,46 +230,46 @@ export default function SuperEncryptionPage() {
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="caesar-shift">Caesar Shift</Label>
-                  <Input id="caesar-shift" type="number" value={caesarShift} onChange={(e) => setCaesarShift(e.target.value)} />
+                  <Input id="caesar-shift" type="number" value={caesarShift} onChange={(e) => setCaesarShift(e.target.value)} {...describedBy('caesarShift', errorCode, NOTICE_ID)} />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="vigenere-key">Vigenère Key</Label>
-                  <Input id="vigenere-key" type="text" value={vigenereKey} onChange={(e) => setVigenereKey(e.target.value.toUpperCase())} className="uppercase" />
+                  <Input id="vigenere-key" type="text" value={vigenereKey} onChange={(e) => setVigenereKey(e.target.value.toUpperCase())} className="uppercase" {...describedBy('vigenereKey', errorCode, NOTICE_ID)} />
                 </div>
               </div>
 
               <h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground mt-4 border-t pt-4">Kunci Modern</h3>
               <div className="space-y-2">
                 <Label htmlFor="lfsr-seed">LFSR Binary Seed</Label>
-                <Input id="lfsr-seed" type="text" value={lfsrSeed} onChange={(e) => setLfsrSeed(e.target.value.replace(/[^01]/g, ''))} className="font-mono tracking-widest" />
+                <Input id="lfsr-seed" type="text" value={lfsrSeed} onChange={(e) => setLfsrSeed(e.target.value.replace(/[^01]/g, ''))} className="font-mono tracking-widest" {...describedBy('lfsrSeed', errorCode, NOTICE_ID)} />
               </div>
               
               <div className="grid grid-cols-3 gap-2">
                 <div className="space-y-2">
                   <Label htmlFor="rsa-p">RSA p</Label>
-                  <Input id="rsa-p" type="number" value={rsaP} onChange={(e) => setRsaP(e.target.value)} />
+                  <Input id="rsa-p" type="number" value={rsaP} onChange={(e) => setRsaP(e.target.value)} {...describedBy('rsaP', errorCode, NOTICE_ID)} />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="rsa-q">RSA q</Label>
-                  <Input id="rsa-q" type="number" value={rsaQ} onChange={(e) => setRsaQ(e.target.value)} />
+                  <Input id="rsa-q" type="number" value={rsaQ} onChange={(e) => setRsaQ(e.target.value)} {...describedBy('rsaQ', errorCode, NOTICE_ID)} />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="rsa-e">RSA e</Label>
-                  <Input id="rsa-e" type="number" value={rsaE} onChange={(e) => setRsaE(e.target.value)} />
+                  <Input id="rsa-e" type="number" value={rsaE} onChange={(e) => setRsaE(e.target.value)} {...describedBy('rsaE', errorCode, NOTICE_ID)} />
                 </div>
               </div>
             </div>
 
             <div className="flex space-x-4 pt-2">
               <Button onClick={() => handleProcess('encrypt')} className="flex-1 bg-primary text-primary-foreground hover:bg-primary/90 h-12 text-lg">
-                <Lock className="w-5 h-5 mr-2" /> Encrypt Pipeline
+                <Lock aria-hidden="true" className="w-5 h-5 mr-2" /> Encrypt Pipeline
               </Button>
               <Button onClick={() => handleProcess('decrypt')} variant="secondary" className="flex-1 h-12 text-lg border shadow-sm">
-                <Unlock className="w-5 h-5 mr-2" /> Decrypt Pipeline
+                <Unlock aria-hidden="true" className="w-5 h-5 mr-2" /> Decrypt Pipeline
               </Button>
             </div>
 
-            <ValidationNotice info={error} />
+            <ValidationNotice info={error} id={NOTICE_ID} />
           </CardContent>
         </Card>
 
@@ -315,7 +323,7 @@ export default function SuperEncryptionPage() {
 
                   {result.steps.map((step, idx) => (
                     <div key={idx} className="flex flex-col items-center w-full">
-                      <ChevronDown className="w-5 h-5 text-primary/50 my-1" />
+                      <ChevronDown aria-hidden="true" className="w-5 h-5 text-primary/50 my-1" />
                       
                       <details className="group w-full border rounded-lg bg-card shadow-sm cursor-pointer [&_summary::-webkit-details-marker]:hidden">
                         <summary className="p-4 font-bold flex flex-col md:flex-row md:items-center justify-between hover:bg-muted/50 list-none gap-2">

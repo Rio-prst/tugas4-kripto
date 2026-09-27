@@ -9,17 +9,24 @@ import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { ArrowRight, Lock, Unlock, ArrowDown, TriangleAlert, Eye, EyeOff } from 'lucide-react';
 import { ValidationNotice } from '@/components/ValidationNotice';
+import { describedBy } from '@/lib/errorFields';
 import { ResultStatus } from '@/components/ResultStatus';
 import { CopyButton } from '@/components/CopyButton';
 import { useCipherRun } from '@/hooks/useCipherRun';
 import { CipherError } from '@/lib/cipherError';
 import { checkInputLength } from '@/lib/cipherLimits';
 
+/**
+ * The id the error notice is given, referenced by aria-describedby on the
+ * field at fault so the message is announced as part of that field.
+ */
+const NOTICE_ID = 'validation-notice';
+
 export default function AesCipherPage() {
   const [inputText, setInputText] = useState('');
   const [shiftKey, setShiftKey] = useState('');
   const [showKey, setShowKey] = useState(false);
-  const { result, error, run, mode, setMode } = useCipherRun<AesResult>();
+  const { result, error, errorCode, run, mode, setMode } = useCipherRun<AesResult>();
 
   const handleProcess = (selectedMode: 'encrypt' | 'decrypt') => {
     setMode(selectedMode);
@@ -74,6 +81,7 @@ export default function AesCipherPage() {
               <Label htmlFor="input-text">Text</Label>
               <Textarea
                 id="input-text"
+                {...describedBy('inputText', errorCode, NOTICE_ID)}
                 placeholder="Enter text..."
                 value={inputText}
                 onChange={(e) => setInputText(e.target.value)}
@@ -91,6 +99,7 @@ export default function AesCipherPage() {
                   value={shiftKey}
                   onChange={(e) => setShiftKey(e.target.value)}
                   className="flex-1"
+                  {...describedBy('aesKey', errorCode, NOTICE_ID)}
                 />
                 {/* The page prints the derived round keys, so being unable to
                     read the key that produced them is a dead end. */}
@@ -117,7 +126,7 @@ export default function AesCipherPage() {
                 disabled={!inputText || !shiftKey}
                 className="flex-1 bg-primary text-primary-foreground hover:bg-primary/90"
               >
-                <Lock className="w-4 h-4 mr-2" />
+                <Lock aria-hidden="true" className="w-4 h-4 mr-2" />
                 Encrypt
               </Button>
               <Button 
@@ -126,12 +135,12 @@ export default function AesCipherPage() {
                 disabled={!inputText || !shiftKey}
                 className="flex-1"
               >
-                <Unlock className="w-4 h-4 mr-2" />
+                <Unlock aria-hidden="true" className="w-4 h-4 mr-2" />
                 Decrypt
               </Button>
             </div>
 
-            <ValidationNotice info={error} />
+            <ValidationNotice info={error} id={NOTICE_ID} />
           </CardContent>
         </Card>
 
@@ -208,8 +217,8 @@ export default function AesCipherPage() {
 
                       {step.matrixBefore && step.matrixAfter && (
                         <div className="flex flex-col items-center text-muted-foreground my-2 md:my-0 md:ml-4">
-                          <ArrowRight className="hidden md:block w-8 h-8" />
-                          <ArrowDown className="md:hidden w-6 h-6" />
+                          <ArrowRight aria-hidden="true" className="hidden md:block w-8 h-8" />
+                          <ArrowDown aria-hidden="true" className="md:hidden w-6 h-6" />
                           <span className="text-[10px] uppercase font-bold tracking-widest mt-1">Result</span>
                         </div>
                       )}
@@ -244,7 +253,7 @@ export default function AesCipherPage() {
                     {mode === 'encrypt' ? 'Plaintext' : 'Ciphertext'} {block.index}
                   </span>
                   <code className="font-mono text-xs break-all">{block.inputHex}</code>
-                  <ArrowRight className="hidden sm:block w-4 h-4 shrink-0 text-muted-foreground" />
+                  <ArrowRight aria-hidden="true" className="hidden sm:block w-4 h-4 shrink-0 text-muted-foreground" />
                   <code className="font-mono text-xs break-all">{block.outputHex}</code>
                   {block.detailed && (
                     <span className="text-[10px] uppercase font-bold tracking-widest text-primary shrink-0">
