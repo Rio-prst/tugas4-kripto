@@ -1,17 +1,26 @@
 # KryptoLearn
 
-A Next.js app that shows how classical and modern ciphers actually work, by
-running them in the browser and displaying the state at every step instead of
-just the final answer.
+A Next.js app that shows how ciphers actually work, by running them in the
+browser and displaying the state at every step instead of just the final
+answer.
 
-| Page | What it shows |
-| --- | --- |
-| `/caesar` | Per-character alphabet index, shift, and wraparound |
-| `/vigenere` | Key alignment, repeated key, and per-character addition mod 26 |
-| `/lfsr` | Register state at every shift, the tap XOR, and the generated keystream |
-| `/aes` | Full Rijndael round-by-round state matrices and the expanded key schedule |
-| `/rsa` | Per-character modular exponentiation and the key derivation |
-| `/super-encryption` | All four chained, with each intermediate layer |
+**This project exists for education.** It was built for a cryptography course
+as a way to watch each algorithm's internal state move, not to protect
+anything. The primes are small, the register is short, and every algorithm here
+is breakable by hand or by well-known published attacks. See
+[Known limitations](#known-limitations) before drawing any conclusion from it.
+
+The algorithm guides in [`docs/`](docs/) are the reference this implementation
+was written against, and the worked examples in those documents are used as
+test oracles.
+
+| Page | Category | What it shows |
+| --- | --- | --- |
+| `/caesar` | Classical substitution | Per-character alphabet index, shift, and wraparound |
+| `/vigenere` | Classical substitution | Key alignment, repeated key, and per-character addition mod 26 |
+| `/lfsr` | Stream cipher | Register state at every shift, the tap XOR, and the generated keystream |
+| `/rsa` | Asymmetric | Per-character modular exponentiation and the key derivation |
+| `/super-encryption` | Layered | All four chained, with each intermediate layer |
 
 There is no server and no persistence. Every cipher is implemented in
 `src/utils/`, is pure, and is covered by unit tests.
@@ -33,33 +42,54 @@ npm run typecheck
 npm run build
 ```
 
+## Output encoding
+
+Two ciphers produce raw bytes, and a browser can only be handed text. Hex is the
+representation layer that bridges the two. **It is not part of either
+algorithm** — nothing about the XOR or the modular exponentiation changes. It
+is only the form the bytes travel in, so that a result can be displayed and
+copied without loss.
+
+**LFSR** emits one byte per plaintext character as two hex digits, `00` to
+`ff`, concatenated with no separator and no `0x` prefix. Decryption reads that
+hex back, ignoring whitespace and accepting either case. An odd number of hex
+digits is rejected rather than rounded away, because a half byte means the
+paste was truncated.
+
+This matters because the XOR routinely lands outside the printable range. The
+guide's own worked example produces `0x90`, which is `é` in Latin-1 but an
+unassigned control character in Windows-1252 — the same byte, rendered
+differently depending on the browser. Hex removes the ambiguity.
+
+**RSA** has the same problem for a different reason: a ciphertext block is an
+integer, not a character. It emits space-separated numbers instead of hex, and
+decryption expects them back in that form.
+
 ## Known limitations
 
 These are deliberate, and worth knowing before drawing conclusions from the app.
 
-### AES runs in ECB mode, and that is not a production choice
+### None of this is secure encryption
 
-AES only *defines* the block cipher. The block cipher is not a mode of
-operation, and this app uses ECB, the one mode with no chaining.
+The algorithms here are the standard textbook ones, and each has a well-known
+attack:
 
-ECB encrypts every block independently, so **the same 16-byte plaintext block
-always produces the same ciphertext block** under the same key. Encrypt a
-document containing repeated structure and the repetition survives into the
-ciphertext in plain sight. The "All blocks" panel on the AES page is there
-precisely so this is visible rather than merely described: feed it a repeated
-block and the repeated output appears.
+- **Caesar** is a monoalphabetic substitution. Frequency analysis breaks it.
+- **Vigenère** is polyalphabetic, but the Kasiski examination and the Friedman
+  test both recover the key length, after which frequency analysis on each
+  column finishes the job.
+- **LFSR as a keystream generator** is linear, so Berlekamp–Massey recovers the
+  feedback polynomial and the register state from a keystream of length `2L`.
+  The 4-bit default seed is therefore recoverable from 8 bits of keystream,
+  which the LFSR page prints in full.
+- **RSA** uses primes chosen for legibility, not size.
 
-CBC, CTR, or GCM would fix this. They are not implemented, and adding one is a
-change in behaviour, not a setting. Treat the AES page as a visualisation of the
-Rijndael round function, not as a usable encryption scheme.
-
-The RSA page has the same problem for a different reason: the default primes
-give a modulus of 143, small enough to factor by hand. That is on purpose, so
-the arithmetic can be checked by hand, but it is not encryption in any sense.
+None of this is a criticism of the project, which is a teaching aid, but it
+does mean the app must not be used with data that matters.
 
 ### The LFSR only handles byte-sized characters
 
-Each character is converted to 8 bits, and only 8 bits of the keystream are
+Each character is converted to 8 bits, and only 8 bits of keystream are
 generated per character. That is fine for every code point from 0 to 255.
 
 Above that, the conversion pads the binary form to 8 characters and then reads
@@ -68,8 +98,8 @@ discarded**. `U+0100` (256) becomes `0b10000000`, that is 128, not 0. The page
 does not warn about this, because the input is usually plain text; it only
 surfaces if you paste an unusual character into it.
 
-The truncation is one-way, so text that came out of the LFSR is always safe to
-feed back in.
+The truncation is one-way, so the hex output of the LFSR stage always decodes
+back to bytes that are in range.
 
 ## Input validation rules
 
@@ -104,8 +134,8 @@ cannot exist. The app now reports that no private key exists.
 encrypted as one block, `n` must exceed the character code. With the default
 `p = 11, q = 13` we get `n = 143`, `φ = 120`, `d = 103` — small enough to verify
 by hand, and large enough for every ASCII character (code 0–127). The
-super-encryption page uses `p = 17, q = 19` (`n = 323`) instead, because its
-input is LFSR output, which is a raw byte in `0–255` rather than typed text.
+super-encryption page uses `p = 17, q = 19` (`n = 323`) instead, because its LFSR
+stage hands RSA hex characters, whose codes run 48–102.
 
 Note that these primes are chosen for legibility, not security. A 143 modulus is
 breakable by a child; real deployments use at least 2048 bits.
@@ -117,14 +147,11 @@ becomes `0 ⊕ 0 = 0`, so the register can never leave it, the keystream stays a
 zeros, and "encryption" would return the plaintext unchanged.
 
 The page also reports the register period (`2^L − 1` for a maximal-length
-configuration). With a 4-bit seed and the `(L−1, L−2)` tap, all 15 states are
-visited, which confirms the register is running at full length.
-
-Encryption and decryption are the same operation here, since XOR with a
-keystream is its own inverse. No rewind of the register is involved: the
-function always starts from the seed, so running the identical keystream over
-the ciphertext a second time already returns the plaintext. That is what the
-round-trip test in `lfsrCipher.test.ts` asserts.
+configuration). The taps are `b₁` and `bₙ` as the guide specifies — the
+keystream bit is the rightmost bit, and the feedback XORs it with the leftmost
+one. With a 4-bit seed that configuration visits all 15 states, which is what
+confirms the register is running at full length. A test pins the guide's own
+8-cycle table so the taps cannot drift again.
 
 ### Caesar and Vigenère
 
@@ -133,21 +160,10 @@ with a blank key returned the plaintext and looked like a clean round trip. A
 non-numeric Caesar shift used to become `0`, producing the identity cipher for
 the same reason. Both are now rejected.
 
-### AES
-
-AES only defines key sizes of 128, 192, and 256 bits, so keys must be 16, 24, or
-32 bytes. The key is measured in bytes rather than string characters, so a key
-containing non-ASCII characters is not silently accepted at the wrong size.
-
-The page encrypts to one long hexadecimal string, so decryption expects
-hexadecimal back, with no spaces and no `0x` prefix. See the note on ECB above
-for why the mode is worth knowing about.
-
 ## Tests
 
 `npm test` runs Vitest over the pure cipher utilities. The suite covers round
-trips for every cipher, the published AES vectors from FIPS-197 Appendix A, B
-and C, and every validation rule listed above. There is no component testing:
-the cipher pages are thin wrappers over the utilities, and the tests target the
-logic rather than the rendering.
-
+trips for every cipher, the worked examples from the guides in `docs/`, and
+every validation rule listed above. There is no component testing: the cipher
+pages are thin wrappers over the utilities, and the tests target the logic
+rather than the rendering.
