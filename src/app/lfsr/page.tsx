@@ -10,16 +10,23 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { ArrowRight, Lock, Unlock, TriangleAlert } from 'lucide-react';
 import { ValidationNotice } from '@/components/ValidationNotice';
+import { describedBy } from '@/lib/errorFields';
 import { ResultStatus } from '@/components/ResultStatus';
 import { CopyButton } from '@/components/CopyButton';
 import { useCipherRun } from '@/hooks/useCipherRun';
 import { CipherError } from '@/lib/cipherError';
 import { checkInputLength } from '@/lib/cipherLimits';
 
+/**
+ * The id the error notice is given, referenced by aria-describedby on the
+ * field at fault so the message is announced as part of that field.
+ */
+const NOTICE_ID = 'validation-notice';
+
 export default function LfsrCipherPage() {
   const [inputText, setInputText] = useState('');
-  const [seed, setSeed] = useState('1001');
-  const { result, error, run, mode, setMode } = useCipherRun<LfsrResult>();
+  const [seed, setSeed] = useState('1111');
+  const { result, error, errorCode, run, mode, setMode } = useCipherRun<LfsrResult>();
 
   const handleProcess = (selectedMode: 'encrypt' | 'decrypt') => {
     setMode(selectedMode);
@@ -28,7 +35,7 @@ export default function LfsrCipherPage() {
         throw new CipherError('EMPTY_INPUT');
       }
       checkInputLength(inputText.length, 'lfsr');
-      return processLFSR(inputText, seed);
+      return processLFSR(inputText, seed, selectedMode);
     });
   };
 
@@ -52,11 +59,17 @@ export default function LfsrCipherPage() {
               <Label htmlFor="input-text">Text</Label>
               <Textarea
                 id="input-text"
-                placeholder="Enter text..."
+                {...describedBy('inputText', errorCode, NOTICE_ID)}
+                placeholder={mode === 'encrypt' ? 'Enter text...' : 'Enter hex bytes...'}
                 value={inputText}
                 onChange={(e) => setInputText(e.target.value)}
                 className="min-h-[120px] resize-none"
               />
+              <p className="text-sm text-muted-foreground">
+                {mode === 'encrypt'
+                  ? 'Plaintext text. The XOR runs on each byte.'
+                  : 'Hexadecimal bytes produced by Encrypt: two digits per byte, no 0x prefix. Spaces are ignored.'}
+              </p>
             </div>
             
             <div className="space-y-2">
@@ -68,6 +81,7 @@ export default function LfsrCipherPage() {
                 value={seed}
                 onChange={(e) => setSeed(e.target.value.replace(/[^01]/g, ''))}
                 className="max-w-xs font-mono tracking-widest"
+                {...describedBy('lfsrSeed', errorCode, NOTICE_ID)}
               />
             </div>
 
@@ -76,7 +90,7 @@ export default function LfsrCipherPage() {
                 onClick={() => handleProcess('encrypt')}
                 className="flex-1 bg-primary text-primary-foreground hover:bg-primary/90"
               >
-                <Lock className="w-4 h-4 mr-2" />
+                <Lock aria-hidden="true" className="w-4 h-4 mr-2" />
                 Encrypt
               </Button>
               <Button 
@@ -84,12 +98,12 @@ export default function LfsrCipherPage() {
                 variant="secondary"
                 className="flex-1"
               >
-                <Unlock className="w-4 h-4 mr-2" />
+                <Unlock aria-hidden="true" className="w-4 h-4 mr-2" />
                 Decrypt
               </Button>
             </div>
 
-            <ValidationNotice info={error} />
+            <ValidationNotice info={error} id={NOTICE_ID} />
           </CardContent>
         </Card>
 
@@ -97,7 +111,7 @@ export default function LfsrCipherPage() {
           <CardHeader>
             <CardTitle>Final Result</CardTitle>
             <CardDescription>
-              {mode === 'encrypt' ? 'Encrypted Result' : 'Decrypted Result'} (Note: Ciphertext may contain unprintable characters)
+                {mode === 'encrypt' ? 'Encrypted Result' : 'Decrypted Result'} (ciphertext is shown as hex bytes, two digits per byte)
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -111,12 +125,12 @@ export default function LfsrCipherPage() {
                 </>
               ) : error ? (
                 <p className="text-muted-foreground flex items-center">
-                  <TriangleAlert className="w-5 h-5 mr-2" />
+                  <TriangleAlert aria-hidden="true" className="w-5 h-5 mr-2" />
                   No result. See the message on the left.
                 </p>
               ) : (
                 <p className="text-muted-foreground flex items-center">
-                  <ArrowRight className="w-5 h-5 mr-2 animate-pulse" />
+                  <ArrowRight aria-hidden="true" className="w-5 h-5 mr-2 animate-pulse" />
                   Awaiting input
                 </p>
               )}
@@ -131,7 +145,7 @@ export default function LfsrCipherPage() {
           <CardHeader>
             <CardTitle>Bit-by-Bit Keystream Generation (LFSR)</CardTitle>
             <CardDescription>
-              How the initial seed shifts left-to-right to produce a seemingly random keystream. (Tap uses the 2 rightmost bits).
+              How the initial seed shifts left-to-right to produce a seemingly random keystream. The keystream bit is the rightmost bit b1, and the feedback is b1 XOR b_n (the leftmost bit).
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -180,11 +194,16 @@ export default function LfsrCipherPage() {
               <Table>
                 <TableHeader>
                   <TableRow className="bg-muted/50">
-                    <TableHead className="text-center w-[120px]">Character</TableHead>
+                    <TableHead className="text-center w-[120px]">
+                      {mode === 'encrypt' ? 'Plaintext Char' : 'Cipher Byte'}
+                    </TableHead>
                     <TableHead className="text-center">Binary (Text)</TableHead>
                     <TableHead className="text-center text-primary">Binary (Keystream)</TableHead>
                     <TableHead className="text-center">XOR Result</TableHead>
-                    <TableHead className="text-center w-[120px]">Final Char</TableHead>
+                    <TableHead className="text-center w-[90px]">Hex Byte</TableHead>
+                    <TableHead className="text-center w-[120px]">
+                      {mode === 'encrypt' ? 'Cipher Char' : 'Plaintext Char'}
+                    </TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -201,6 +220,9 @@ export default function LfsrCipherPage() {
                       </TableCell>
                       <TableCell className="text-center font-mono tracking-widest text-foreground font-bold border-l-2 border-r-2 bg-muted/20">
                         {step.xorResultBinary}
+                      </TableCell>
+                      <TableCell className="text-center font-mono font-bold text-primary border-l-2 border-r-2 bg-muted/20">
+                        {step.resultByteHex}
                       </TableCell>
                       <TableCell className="text-center font-bold text-lg">
                         {step.resultChar}

@@ -11,16 +11,23 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { ArrowRight, Lock, Unlock, TriangleAlert } from 'lucide-react';
 import { ValidationNotice } from '@/components/ValidationNotice';
+import { describedBy } from '@/lib/errorFields';
 import { ResultStatus } from '@/components/ResultStatus';
 import { CopyButton } from '@/components/CopyButton';
 import { useCipherRun } from '@/hooks/useCipherRun';
 import { CipherError } from '@/lib/cipherError';
 import { checkInputLength } from '@/lib/cipherLimits';
 
+/**
+ * The id the error notice is given, referenced by aria-describedby on the
+ * field at fault so the message is announced as part of that field.
+ */
+const NOTICE_ID = 'validation-notice';
+
 export default function VigenereCipherPage() {
   const [inputText, setInputText] = useState('');
   const [shiftKey, setShiftKey] = useState('KEY');
-  const { result, error, run, mode, setMode } = useCipherRun<CipherResult>();
+  const { result, error, errorCode, run, mode, setMode } = useCipherRun<CipherResult>();
 
   const handleProcess = (selectedMode: 'encrypt' | 'decrypt') => {
     setMode(selectedMode);
@@ -72,6 +79,7 @@ export default function VigenereCipherPage() {
               <Label htmlFor="input-text">Text (Plaintext or Ciphertext)</Label>
               <Textarea
                 id="input-text"
+                {...describedBy('inputText', errorCode, NOTICE_ID)}
                 placeholder="Enter text here..."
                 value={inputText}
                 onChange={(e) => setInputText(e.target.value)}
@@ -87,6 +95,7 @@ export default function VigenereCipherPage() {
                 value={shiftKey}
                 onChange={(e) => setShiftKey(e.target.value.toUpperCase())}
                 className="max-w-xs uppercase"
+                {...describedBy('vigenereKey', errorCode, NOTICE_ID)}
               />
             </div>
 
@@ -95,7 +104,7 @@ export default function VigenereCipherPage() {
                 onClick={() => handleProcess('encrypt')}
                 className="flex-1 bg-primary text-primary-foreground hover:bg-primary/90"
               >
-                <Lock className="w-4 h-4 mr-2" />
+                <Lock aria-hidden="true" className="w-4 h-4 mr-2" />
                 Encrypt
               </Button>
               <Button 
@@ -103,12 +112,12 @@ export default function VigenereCipherPage() {
                 variant="secondary"
                 className="flex-1"
               >
-                <Unlock className="w-4 h-4 mr-2" />
+                <Unlock aria-hidden="true" className="w-4 h-4 mr-2" />
                 Decrypt
               </Button>
             </div>
 
-            <ValidationNotice info={error} />
+            <ValidationNotice info={error} id={NOTICE_ID} />
           </CardContent>
         </Card>
 
@@ -131,12 +140,12 @@ export default function VigenereCipherPage() {
                 </>
               ) : error ? (
                 <p className="text-muted-foreground flex items-center">
-                  <TriangleAlert className="w-5 h-5 mr-2" />
+                  <TriangleAlert aria-hidden="true" className="w-5 h-5 mr-2" />
                   No result. See the message on the left.
                 </p>
               ) : (
                 <p className="text-muted-foreground flex items-center">
-                  <ArrowRight className="w-5 h-5 mr-2 animate-pulse" />
+                  <ArrowRight aria-hidden="true" className="w-5 h-5 mr-2 animate-pulse" />
                   Awaiting input
                 </p>
               )}

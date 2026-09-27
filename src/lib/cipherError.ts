@@ -17,10 +17,7 @@ export type CipherErrorCode =
   | 'SEED_NOT_BINARY'
   | 'SEED_TOO_SHORT'
   | 'SEED_ALL_ZERO'
-  // AES
-  | 'AES_KEY_LENGTH'
-  | 'AES_CIPHERTEXT_FORMAT'
-  | 'AES_DECRYPT_FAILED'
+  | 'CIPHERTEXT_NOT_HEX'
   // Shared
   | 'INPUT_TOO_LONG'
   | 'UNKNOWN';
@@ -102,21 +99,11 @@ const MESSAGES: Record<CipherErrorCode, CipherErrorInfo> = {
     detail: 'The all-zero state is an absorbing state: every new bit becomes 0 XOR 0 = 0, so the register can never leave it. The keystream would be all zeros, which means "encryption" would return the plaintext unchanged.',
     hint: 'Pick a seed with at least one 1, for example 1001 or 1010.',
   },
-  AES_KEY_LENGTH: {
-    title: 'AES key must be 16, 24, or 32 bytes',
-    detail: 'AES only accepts key sizes of 128, 192, or 256 bits, which is 16, 24, or 32 bytes.',
-    hint: 'A 16-character ASCII key is the simplest choice.',
-  },
-  AES_CIPHERTEXT_FORMAT: {
+  CIPHERTEXT_NOT_HEX: {
     title: 'Ciphertext must be hexadecimal',
     detail:
-      'This page encrypts to one long hexadecimal string, so decryption expects hexadecimal too, with no spaces and no 0x prefix.',
-    hint: 'Use the Encrypt button on this page to produce a ciphertext you can paste back in.',
-  },
-  AES_DECRYPT_FAILED: {
-    title: 'Decryption failed',
-    detail: 'The ciphertext could not be decrypted with this key. Either the key is wrong or the ciphertext has been altered or truncated.',
-    hint: 'Check that the ciphertext was copied in full, including any padding characters.',
+      'This page emits the XOR result as hexadecimal bytes, so decryption expects hex back: two digits per byte, 00 to ff, with no 0x prefix. Spaces and newlines are ignored.',
+    hint: 'Use the Encrypt button to produce a ciphertext you can paste back in.',
   },
   INPUT_TOO_LONG: {
     title: 'Input is too long',
@@ -127,6 +114,15 @@ const MESSAGES: Record<CipherErrorCode, CipherErrorInfo> = {
     detail: 'The cipher could not finish. Please try again with different parameters.',
   },
 };
+
+/**
+ * Every code, as a runtime list.
+ *
+ * The `CipherErrorCode` type is a union, which TypeScript erases, so a test
+ * that wants to prove every code is handled has no way to enumerate them.
+ * This gives it something to iterate over without duplicating the union.
+ */
+export const CIPHER_ERROR_CODES = Object.keys(MESSAGES) as CipherErrorCode[];
 
 export function describeCipherError(code: CipherErrorCode, detail?: string): CipherErrorInfo {
   const base = MESSAGES[code] ?? MESSAGES.UNKNOWN;

@@ -5,7 +5,6 @@ export const MAX_INPUT = {
   vigenere: 5000,
   lfsr: 512,
   rsa: 2048,
-  aes: 4096,
   superEncryption: 512,
 } as const;
 
