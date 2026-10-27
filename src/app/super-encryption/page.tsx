@@ -1,5 +1,7 @@
 'use client';
 
+import { PaginatedRows } from '@/components/PaginatedRows';
+
 import { useState } from 'react';
 import { processCaesar } from '@/utils/caesarCipher';
 import { processVigenere } from '@/utils/vigenereCipher';
@@ -11,7 +13,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Table, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Lock, Unlock, ShieldCheck, ChevronDown, TriangleAlert } from 'lucide-react';
 import { ValidationNotice } from '@/components/ValidationNotice';
 import { describedBy } from '@/lib/errorFields';
@@ -19,7 +21,6 @@ import { ResultStatus } from '@/components/ResultStatus';
 import { CopyButton } from '@/components/CopyButton';
 import { useCipherRun } from '@/hooks/useCipherRun';
 import { CipherError, isCipherError } from '@/lib/cipherError';
-import { checkInputLength } from '@/lib/cipherLimits';
 
 import { CipherResult } from '@/types/crypto';
 import { LfsrResult } from '@/utils/lfsrCipher';
@@ -91,7 +92,6 @@ export default function SuperEncryptionPage() {
       if (!inputText) {
         throw new CipherError('EMPTY_INPUT');
       }
-      checkInputLength(inputText.length, 'superEncryption');
 
       const shift = /^-?\d+$/.test(caesarShift.trim()) ? parseInt(caesarShift, 10) : Number.NaN;
 
@@ -151,15 +151,15 @@ export default function SuperEncryptionPage() {
       <TableHeader>
         <TableRow><TableHead>Ori</TableHead><TableHead>Math</TableHead><TableHead>Result</TableHead></TableRow>
       </TableHeader>
-      <TableBody>
-        {data.steps.map((s, i) => (
+      <PaginatedRows items={data.steps}>
+        {(s, i) => (
           <TableRow key={i} className={!s.isAlphabetic ? 'opacity-50' : ''}>
             <TableCell className="font-bold">{s.originalChar}</TableCell>
             <TableCell className="font-mono text-xs">{s.formula}</TableCell>
             <TableCell className="font-bold text-primary">{s.newChar}</TableCell>
           </TableRow>
-        ))}
-      </TableBody>
+        )}
+      </PaginatedRows>
     </Table>
   );
 
@@ -168,8 +168,8 @@ export default function SuperEncryptionPage() {
       <TableHeader>
         <TableRow><TableHead>Char</TableHead><TableHead>Txt Bin</TableHead><TableHead>Key Bin</TableHead><TableHead>XOR (Out)</TableHead><TableHead>Hex</TableHead></TableRow>
       </TableHeader>
-      <TableBody>
-        {data.steps.map((s, i) => (
+      <PaginatedRows items={data.steps}>
+        {(s, i) => (
           <TableRow key={i}>
             <TableCell className="font-bold">{s.char}</TableCell>
             <TableCell className="font-mono">{s.charBinary}</TableCell>
@@ -177,8 +177,8 @@ export default function SuperEncryptionPage() {
             <TableCell className="font-mono font-bold">{s.xorResultBinary}</TableCell>
             <TableCell className="font-mono font-bold text-primary">{s.resultByteHex}</TableCell>
           </TableRow>
-        ))}
-      </TableBody>
+        )}
+      </PaginatedRows>
     </Table>
   );
 
@@ -187,23 +187,23 @@ export default function SuperEncryptionPage() {
       <TableHeader>
         <TableRow><TableHead>Char/Block</TableHead><TableHead>Code</TableHead><TableHead>Mod Exp</TableHead><TableHead>Out Code</TableHead></TableRow>
       </TableHeader>
-      <TableBody>
-        {data.steps.map((s, i) => (
+      <PaginatedRows items={data.steps}>
+        {(s, i) => (
           <TableRow key={i}>
             <TableCell className="font-bold">{s.char}</TableCell>
             <TableCell className="font-mono">{s.charCode}</TableCell>
             <TableCell className="font-mono text-xs">{s.formula}</TableCell>
             <TableCell className="font-bold text-primary">{s.resultCode}</TableCell>
           </TableRow>
-        ))}
-      </TableBody>
+        )}
+      </PaginatedRows>
     </Table>
   );
 
   return (
-    <div className="container mx-auto py-10 space-y-8 max-w-5xl">
+    <div className="@container w-full min-w-0 py-4 sm:py-6 space-y-6 sm:space-y-8">
       <div className="flex flex-col space-y-2">
-        <h1 className="text-4xl font-bold tracking-tight flex items-center gap-3">
+        <h1 className="text-3xl sm:text-4xl font-bold tracking-tight flex items-center gap-3">
           <ShieldCheck aria-hidden="true" className="w-10 h-10 text-primary" />
           Super Encryption
         </h1>
@@ -228,13 +228,13 @@ export default function SuperEncryptionPage() {
                 placeholder={mode === 'encrypt' ? 'Enter plaintext...' : 'Enter ciphertext (space-separated numbers)...'}
                 value={inputText}
                 onChange={(e) => setInputText(e.target.value)}
-                className="min-h-[100px] resize-none border-primary/30 focus-visible:ring-primary"
+                className="h-64 min-h-40 max-h-[60vh] resize-y border-primary/30 focus-visible:ring-primary"
               />
             </div>
             
             <div className="space-y-4 bg-muted/30 p-4 rounded-lg border">
               <h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground">Classical Keys</h3>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="caesar-shift">Caesar Shift</Label>
                   <Input id="caesar-shift" type="number" value={caesarShift} onChange={(e) => setCaesarShift(e.target.value)} {...describedBy('caesarShift', errorCode, NOTICE_ID)} />
@@ -251,7 +251,7 @@ export default function SuperEncryptionPage() {
                 <Input id="lfsr-seed" type="text" value={lfsrSeed} onChange={(e) => setLfsrSeed(e.target.value.replace(/[^01]/g, ''))} className="font-mono tracking-widest" {...describedBy('lfsrSeed', errorCode, NOTICE_ID)} />
               </div>
               
-              <div className="grid grid-cols-3 gap-2">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                 <div className="space-y-2">
                   <Label htmlFor="rsa-p">RSA p</Label>
                   <Input id="rsa-p" type="number" value={rsaP} onChange={(e) => setRsaP(e.target.value)} {...describedBy('rsaP', errorCode, NOTICE_ID)} />
@@ -267,7 +267,7 @@ export default function SuperEncryptionPage() {
               </div>
             </div>
 
-            <div className="flex space-x-4 pt-2">
+            <div className="flex flex-col sm:flex-row gap-3 pt-2">
               <Button onClick={() => handleProcess('encrypt')} className="flex-1 bg-primary text-primary-foreground hover:bg-primary/90 h-12 text-lg">
                 <Lock aria-hidden="true" className="w-5 h-5 mr-2" /> Encrypt Pipeline
               </Button>
@@ -289,10 +289,10 @@ export default function SuperEncryptionPage() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="bg-background rounded-lg p-6 min-h-[150px] flex flex-col items-center justify-center gap-4 border">
+              <div className="bg-background rounded-lg p-4 sm:p-6 min-h-64 flex flex-col items-start justify-start gap-4 border">
                 {result ? (
                   <>
-                    <p className="text-2xl font-mono text-center break-all text-primary font-bold">
+                    <p className="text-base sm:text-lg leading-relaxed font-mono text-left max-h-[60vh] w-full overflow-y-auto whitespace-pre-wrap [overflow-wrap:anywhere] text-primary font-bold">
                       {result.finalOut}
                     </p>
                     <CopyButton value={result.finalOut} />
@@ -330,7 +330,7 @@ export default function SuperEncryptionPage() {
                   {/* Step 0: Input */}
                   <div className="p-3 bg-muted/50 border rounded text-center mb-2">
                     <span className="text-xs uppercase font-bold text-muted-foreground block mb-1">Original Input</span>
-                    <span className="font-mono break-all">{inputText}</span>
+                    <span className="block max-h-48 overflow-y-auto font-mono whitespace-pre-wrap break-all">{inputText}</span>
                   </div>
 
                   {result.steps.map((step, idx) => (

@@ -1,5 +1,7 @@
 'use client';
 
+import { PaginatedRows } from '@/components/PaginatedRows';
+
 import { useState } from 'react';
 import { processVigenere } from '@/utils/vigenereCipher';
 import { CipherResult } from '@/types/crypto';
@@ -8,7 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Table, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { ArrowRight, Lock, Unlock, TriangleAlert } from 'lucide-react';
 import { ValidationNotice } from '@/components/ValidationNotice';
 import { describedBy } from '@/lib/errorFields';
@@ -16,7 +18,6 @@ import { ResultStatus } from '@/components/ResultStatus';
 import { CopyButton } from '@/components/CopyButton';
 import { useCipherRun } from '@/hooks/useCipherRun';
 import { CipherError } from '@/lib/cipherError';
-import { checkInputLength } from '@/lib/cipherLimits';
 
 /**
  * The id the error notice is given, referenced by aria-describedby on the
@@ -35,7 +36,6 @@ export default function VigenereCipherPage() {
       if (!inputText) {
         throw new CipherError('EMPTY_INPUT');
       }
-      checkInputLength(inputText.length, 'vigenere');
       return processVigenere(inputText, shiftKey, selectedMode);
     });
   };
@@ -59,15 +59,15 @@ export default function VigenereCipherPage() {
   const repeatedKey = getRepeatedKey();
 
   return (
-    <div className="container mx-auto py-10 space-y-8 max-w-5xl">
+    <div className="@container w-full min-w-0 py-4 sm:py-6 space-y-6 sm:space-y-8">
       <div className="flex flex-col space-y-2">
-        <h1 className="text-4xl font-bold tracking-tight">Vigenère Cipher</h1>
+        <h1 className="text-3xl sm:text-4xl font-bold tracking-tight">Vigenère Cipher</h1>
         <p className="text-muted-foreground">
           A polyalphabetic substitution cipher using a keyword to determine the shift for each letter.
         </p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 @3xl:grid-cols-2 gap-6">
         {/* Input Form Section */}
         <Card>
           <CardHeader>
@@ -83,7 +83,7 @@ export default function VigenereCipherPage() {
                 placeholder="Enter text here..."
                 value={inputText}
                 onChange={(e) => setInputText(e.target.value)}
-                className="min-h-[120px] resize-none uppercase"
+                className="h-64 min-h-40 max-h-[60vh] resize-y uppercase"
               />
             </div>
             
@@ -99,7 +99,7 @@ export default function VigenereCipherPage() {
               />
             </div>
 
-            <div className="flex space-x-4">
+            <div className="flex flex-col sm:flex-row gap-3">
               <Button 
                 onClick={() => handleProcess('encrypt')}
                 className="flex-1 bg-primary text-primary-foreground hover:bg-primary/90"
@@ -130,10 +130,10 @@ export default function VigenereCipherPage() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="bg-muted rounded-lg p-6 min-h-[220px] flex flex-col items-center justify-center border space-y-4">
+            <div className="bg-muted rounded-lg p-4 sm:p-6 min-h-64 flex flex-col items-start justify-start border space-y-4">
               {result ? (
                 <>
-                  <p className="text-2xl font-mono text-center break-all text-foreground uppercase">
+                  <p className="text-base sm:text-lg leading-relaxed font-mono text-left max-h-[60vh] w-full overflow-y-auto whitespace-pre-wrap [overflow-wrap:anywhere] text-foreground uppercase">
                     {result.resultText}
                   </p>
                   <CopyButton value={result.resultText} />
@@ -208,8 +208,8 @@ export default function VigenereCipherPage() {
                     <TableHead className="text-center w-[100px]">Result</TableHead>
                   </TableRow>
                 </TableHeader>
-                <TableBody>
-                  {result.steps.map((step, index) => (
+                <PaginatedRows items={result.steps}>
+                  {(step, index) => (
                     <TableRow key={index} className={!step.isAlphabetic ? 'opacity-50' : ''}>
                       <TableCell className="text-center font-mono font-bold text-lg uppercase">
                         {step.originalChar}
@@ -227,8 +227,8 @@ export default function VigenereCipherPage() {
                         {step.newChar}
                       </TableCell>
                     </TableRow>
-                  ))}
-                </TableBody>
+                  )}
+                </PaginatedRows>
               </Table>
             </div>
           </CardContent>

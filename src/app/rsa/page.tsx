@@ -1,5 +1,7 @@
 'use client';
 
+import { PaginatedRows } from '@/components/PaginatedRows';
+
 import { useState } from 'react';
 import { processRSA, RsaResult } from '@/utils/rsaCipher';
 import { Button } from '@/components/ui/button';
@@ -7,7 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Table, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { ArrowRight, Lock, Unlock, KeyRound, TriangleAlert } from 'lucide-react';
 import { ValidationNotice } from '@/components/ValidationNotice';
 import { describedBy } from '@/lib/errorFields';
@@ -15,7 +17,6 @@ import { ResultStatus } from '@/components/ResultStatus';
 import { CopyButton } from '@/components/CopyButton';
 import { useCipherRun } from '@/hooks/useCipherRun';
 import { CipherError } from '@/lib/cipherError';
-import { checkInputLength } from '@/lib/cipherLimits';
 
 /**
  * The id the error notice is given, referenced by aria-describedby on the
@@ -36,21 +37,20 @@ export default function RsaCipherPage() {
       if (!inputText.trim()) {
         throw new CipherError('EMPTY_INPUT');
       }
-      checkInputLength(inputText.length, 'rsa');
       return processRSA(inputText, pVal, qVal, eVal, selectedMode);
     });
   };
 
   return (
-    <div className="container mx-auto py-10 space-y-8 max-w-5xl">
+    <div className="@container w-full min-w-0 py-4 sm:py-6 space-y-6 sm:space-y-8">
       <div className="flex flex-col space-y-2">
-        <h1 className="text-4xl font-bold tracking-tight">RSA (Public Key Cryptography)</h1>
+        <h1 className="text-3xl sm:text-4xl font-bold tracking-tight">RSA (Public Key Cryptography)</h1>
         <p className="text-muted-foreground">
           An asymmetric cipher where you encrypt with a Public Key and decrypt with a Private Key. This visualizer uses small prime numbers to make the math readable.
         </p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 @3xl:grid-cols-2 gap-6">
         <Card>
           <CardHeader>
             <CardTitle>Key Generation & Input</CardTitle>
@@ -65,11 +65,11 @@ export default function RsaCipherPage() {
                 placeholder={mode === 'encrypt' ? 'Enter text...' : 'e.g. 104 22 89'}
                 value={inputText}
                 onChange={(e) => setInputText(e.target.value)}
-                className="min-h-[120px] resize-none"
+                className="h-64 min-h-40 max-h-[60vh] resize-y"
               />
             </div>
             
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 @sm:grid-cols-3 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="p-val">Prime p</Label>
                 <Input
@@ -102,7 +102,7 @@ export default function RsaCipherPage() {
               </div>
             </div>
 
-            <div className="flex space-x-4">
+            <div className="flex flex-col sm:flex-row gap-3">
               <Button
                 onClick={() => handleProcess('encrypt')}
                 className="flex-1 bg-primary text-primary-foreground hover:bg-primary/90"
@@ -138,10 +138,10 @@ export default function RsaCipherPage() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="bg-muted rounded-lg p-6 min-h-[220px] flex flex-col items-center justify-center gap-4 border">
+            <div className="bg-muted rounded-lg p-4 sm:p-6 min-h-64 flex flex-col items-start justify-start gap-4 border">
               {result ? (
                 <>
-                  <p className="text-2xl font-mono text-center break-all text-foreground">
+                  <p className="text-base sm:text-lg leading-relaxed font-mono text-left max-h-[60vh] w-full overflow-y-auto whitespace-pre-wrap [overflow-wrap:anywhere] text-foreground">
                     {result.resultText}
                   </p>
                   <CopyButton value={result.resultText} />
@@ -175,7 +175,7 @@ export default function RsaCipherPage() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 @3xl:grid-cols-2 gap-4">
               <div className="p-4 border rounded-lg bg-muted/20 space-y-3">
                 <h3 className="font-semibold border-b pb-2">1. Find n and φ(n)</h3>
                 <p className="font-mono text-sm">
@@ -228,8 +228,8 @@ export default function RsaCipherPage() {
                     <TableHead className="text-center w-[100px]">{mode === 'encrypt' ? 'Cipher Block' : 'Result Char'}</TableHead>
                   </TableRow>
                 </TableHeader>
-                <TableBody>
-                  {result.steps.map((step, index) => (
+                <PaginatedRows items={result.steps}>
+                  {(step, index) => (
                     <TableRow key={index}>
                       <TableCell className="text-center font-mono font-bold text-lg">
                         {step.char}
@@ -247,8 +247,8 @@ export default function RsaCipherPage() {
                         {step.resultChar}
                       </TableCell>
                     </TableRow>
-                  ))}
-                </TableBody>
+                  )}
+                </PaginatedRows>
               </Table>
             </div>
           </CardContent>

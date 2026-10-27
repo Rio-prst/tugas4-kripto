@@ -208,3 +208,38 @@ summary:focus-visible,
     content: "";
   }
 }
+/* Let long cipher output shrink inside grids and flex layouts. */
+main, [data-slot="card"], [data-slot="card-content"],
+[data-slot="table-container"] {
+  min-width: 0;
+  max-width: 100%;
+}
+
+[data-slot="table-container"] {
+  max-height: 32rem;
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+
+[data-slot="table-header"] {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--card);
+}
+
+[data-slot="table-footer"] {
+  position: sticky;
+  bottom: 0;
+  background: var(--card);
+}
+
+@media (max-width: 639px) {
+  [data-slot="table-container"] { max-height: 26rem; }
+  [data-slot="table-cell"], [data-slot="table-head"] { padding: 0.5rem; }
+}
+
+@media print {
+  [data-slot="table-container"] { max-height: none; overflow: visible; }
+  [data-slot="table-header"], [data-slot="table-footer"] { position: static; }
+}

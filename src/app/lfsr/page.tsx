@@ -1,5 +1,7 @@
 'use client';
 
+import { PaginatedRows } from '@/components/PaginatedRows';
+
 import { useState } from 'react';
 import { processLFSR, LfsrResult } from '@/utils/lfsrCipher';
 import { Button } from '@/components/ui/button';
@@ -7,7 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Table, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { ArrowRight, Lock, Unlock, TriangleAlert } from 'lucide-react';
 import { ValidationNotice } from '@/components/ValidationNotice';
 import { describedBy } from '@/lib/errorFields';
@@ -15,7 +17,6 @@ import { ResultStatus } from '@/components/ResultStatus';
 import { CopyButton } from '@/components/CopyButton';
 import { useCipherRun } from '@/hooks/useCipherRun';
 import { CipherError } from '@/lib/cipherError';
-import { checkInputLength } from '@/lib/cipherLimits';
 
 /**
  * The id the error notice is given, referenced by aria-describedby on the
@@ -34,21 +35,20 @@ export default function LfsrCipherPage() {
       if (!inputText) {
         throw new CipherError('EMPTY_INPUT');
       }
-      checkInputLength(inputText.length, 'lfsr');
       return processLFSR(inputText, seed, selectedMode);
     });
   };
 
   return (
-    <div className="container mx-auto py-10 space-y-8 max-w-5xl">
+    <div className="@container w-full min-w-0 py-4 sm:py-6 space-y-6 sm:space-y-8">
       <div className="flex flex-col space-y-2">
-        <h1 className="text-4xl font-bold tracking-tight">LFSR & Vernam Cipher</h1>
+        <h1 className="text-3xl sm:text-4xl font-bold tracking-tight">LFSR & Vernam Cipher</h1>
         <p className="text-muted-foreground">
           A Stream Cipher visualization. A Linear Feedback Shift Register (LFSR) generates a random keystream bit-by-bit, which is XOR-ed with the Plaintext bits (Vernam Cipher).
         </p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 @3xl:grid-cols-2 gap-6">
         <Card>
           <CardHeader>
             <CardTitle>Configuration</CardTitle>
@@ -63,7 +63,7 @@ export default function LfsrCipherPage() {
                 placeholder={mode === 'encrypt' ? 'Enter text...' : 'Enter hex bytes...'}
                 value={inputText}
                 onChange={(e) => setInputText(e.target.value)}
-                className="min-h-[120px] resize-none"
+                className="h-64 min-h-40 max-h-[60vh] resize-y"
               />
               <p className="text-sm text-muted-foreground">
                 {mode === 'encrypt'
@@ -85,7 +85,7 @@ export default function LfsrCipherPage() {
               />
             </div>
 
-            <div className="flex space-x-4">
+            <div className="flex flex-col sm:flex-row gap-3">
               <Button 
                 onClick={() => handleProcess('encrypt')}
                 className="flex-1 bg-primary text-primary-foreground hover:bg-primary/90"
@@ -115,10 +115,10 @@ export default function LfsrCipherPage() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="bg-muted rounded-lg p-6 min-h-[220px] flex flex-col items-center justify-center gap-4 border">
+            <div className="bg-muted rounded-lg p-4 sm:p-6 min-h-64 flex flex-col items-start justify-start gap-4 border">
               {result ? (
                 <>
-                  <p className="text-lg font-mono text-center break-all text-foreground">
+                  <p className="text-base sm:text-lg leading-relaxed font-mono text-left max-h-[60vh] w-full overflow-y-auto whitespace-pre-wrap [overflow-wrap:anywhere] text-foreground">
                     {result.resultText}
                   </p>
                   <CopyButton value={result.resultText} />
@@ -149,7 +149,7 @@ export default function LfsrCipherPage() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="rounded-md border p-4 max-h-96 overflow-y-auto">
+            <div className="rounded-md border">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -161,8 +161,8 @@ export default function LfsrCipherPage() {
                     <TableHead className="font-mono">State After</TableHead>
                   </TableRow>
                 </TableHeader>
-                <TableBody>
-                  {result.steps.map((step, sIdx) => 
+                <PaginatedRows items={result.steps}>
+                  {(step, sIdx) =>
                     step.shiftDetails.map((shift, bIdx) => (
                       <TableRow key={`${sIdx}-${bIdx}`} className={bIdx === 7 ? 'border-b-4' : ''}>
                         <TableCell className="font-bold">{bIdx === 0 ? `'${step.char}'` : ''}</TableCell>
@@ -173,8 +173,8 @@ export default function LfsrCipherPage() {
                         <TableCell className="font-mono tracking-widest">{shift.stateAfter}</TableCell>
                       </TableRow>
                     ))
-                  )}
-                </TableBody>
+                  }
+                </PaginatedRows>
               </Table>
             </div>
           </CardContent>
@@ -206,8 +206,8 @@ export default function LfsrCipherPage() {
                     </TableHead>
                   </TableRow>
                 </TableHeader>
-                <TableBody>
-                  {result.steps.map((step, index) => (
+                <PaginatedRows items={result.steps}>
+                  {(step, index) => (
                     <TableRow key={index}>
                       <TableCell className="text-center font-bold text-lg">
                         {step.char}
@@ -228,8 +228,8 @@ export default function LfsrCipherPage() {
                         {step.resultChar}
                       </TableCell>
                     </TableRow>
-                  ))}
-                </TableBody>
+                  )}
+                </PaginatedRows>
               </Table>
             </div>
           </CardContent>

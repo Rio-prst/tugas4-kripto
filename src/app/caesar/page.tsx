@@ -1,5 +1,7 @@
 'use client';
 
+import { PaginatedRows } from '@/components/PaginatedRows';
+
 import { useState } from 'react';
 import { processCaesar } from '@/utils/caesarCipher';
 import { CipherResult } from '@/types/crypto';
@@ -8,7 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Table, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { ArrowRight, Lock, Unlock, TriangleAlert } from 'lucide-react';
 import { ValidationNotice } from '@/components/ValidationNotice';
 import { describedBy } from '@/lib/errorFields';
@@ -16,7 +18,6 @@ import { ResultStatus } from '@/components/ResultStatus';
 import { CopyButton } from '@/components/CopyButton';
 import { useCipherRun } from '@/hooks/useCipherRun';
 import { CipherError } from '@/lib/cipherError';
-import { checkInputLength } from '@/lib/cipherLimits';
 
 /**
  * The id the error notice is given, referenced by aria-describedby on the
@@ -35,7 +36,6 @@ export default function CaesarCipherPage() {
       if (!inputText) {
         throw new CipherError('EMPTY_INPUT');
       }
-      checkInputLength(inputText.length, 'caesar');
       const numericShift = /^-?\d+$/.test(shiftKey.trim())
         ? parseInt(shiftKey, 10)
         : Number.NaN;
@@ -44,15 +44,15 @@ export default function CaesarCipherPage() {
   };
 
   return (
-    <div className="container mx-auto py-10 space-y-8 max-w-5xl">
+    <div className="@container w-full min-w-0 py-4 sm:py-6 space-y-6 sm:space-y-8">
       <div className="flex flex-col space-y-2">
-        <h1 className="text-4xl font-bold tracking-tight">Caesar Cipher</h1>
+        <h1 className="text-3xl sm:text-4xl font-bold tracking-tight">Caesar Cipher</h1>
         <p className="text-muted-foreground">
           A substitution cipher where each letter in the plaintext is shifted a certain number of places down the alphabet.
         </p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 @3xl:grid-cols-2 gap-6">
         {/* Input Form Section */}
         <Card>
           <CardHeader>
@@ -68,7 +68,7 @@ export default function CaesarCipherPage() {
                 placeholder="Enter text here..."
                 value={inputText}
                 onChange={(e) => setInputText(e.target.value)}
-                className="min-h-[120px] resize-none"
+                className="h-64 min-h-40 max-h-[60vh] resize-y"
               />
             </div>
             
@@ -84,7 +84,7 @@ export default function CaesarCipherPage() {
               />
             </div>
 
-            <div className="flex space-x-4">
+            <div className="flex flex-col sm:flex-row gap-3">
               <Button
                 onClick={() => handleProcess('encrypt')}
                 className="flex-1 bg-primary text-primary-foreground hover:bg-primary/90"
@@ -115,13 +115,13 @@ export default function CaesarCipherPage() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="bg-muted rounded-lg p-6 min-h-[220px] flex items-center justify-center border relative">
+            <div className="bg-muted rounded-lg p-4 sm:p-6 min-h-64 flex flex-col items-start justify-start gap-4 border relative">
               {result ? (
                 <>
-                  <p className="text-2xl font-mono text-center break-all text-foreground">
+                  <p className="text-base sm:text-lg leading-relaxed font-mono text-left max-h-[60vh] w-full overflow-y-auto whitespace-pre-wrap [overflow-wrap:anywhere] text-foreground">
                     {result.resultText}
                   </p>
-                  <CopyButton value={result.resultText} className="absolute top-2 right-2" />
+                  <CopyButton value={result.resultText} />
                 </>
               ) : error ? (
                 <p className="text-muted-foreground flex items-center">
@@ -191,8 +191,8 @@ export default function CaesarCipherPage() {
                     <TableHead className="text-center w-[100px]">Result</TableHead>
                   </TableRow>
                 </TableHeader>
-                <TableBody>
-                  {result.steps.map((step, index) => (
+                <PaginatedRows items={result.steps}>
+                  {(step, index) => (
                     <TableRow key={index} className={!step.isAlphabetic ? 'opacity-50' : ''}>
                       <TableCell className="text-center font-mono font-bold text-lg">
                         {step.originalChar}
@@ -210,8 +210,8 @@ export default function CaesarCipherPage() {
                         {step.newChar}
                       </TableCell>
                     </TableRow>
-                  ))}
-                </TableBody>
+                  )}
+                </PaginatedRows>
               </Table>
             </div>
           </CardContent>
